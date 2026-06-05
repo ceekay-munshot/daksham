@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       max_pages:
-        description: "Max pages to paginate (safety cap). Set to 1-2 for a quick live smoke test."
+        description: "Max pages to paginate (safety cap). The screen is ~201 pages; set to 1-2 for a quick smoke test."
         required: false
-        default: "60"
+        default: "250"
       start_at:
         description: "Resume from this page number (0 = start fresh)."
         required: false

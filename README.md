@@ -34,7 +34,7 @@ screen and its columns.
 | `SCREENER_EMAIL` | ✅ | — | Screener.in login email |
 | `SCREENER_PASSWORD` | ✅ | — | Screener.in login password |
 | `SCREEN_URL` | — | `https://www.screener.in/screens/3706521/daksham-universe-mcap-25000/` | Saved screen to read |
-| `MAX_PAGES` | — | `60` | Safety cap on pages to paginate |
+| `MAX_PAGES` | — | `250` | Safety cap on pages to paginate (the default screen is ~201 pages; the "page X of Y" stop ends the run earlier) |
 | `START_AT` | — | `0` | Resume from this page number (`0`/`1` = start fresh) |
 
 In CI, set `SCREENER_EMAIL` and `SCREENER_PASSWORD` as **GitHub Actions secrets**

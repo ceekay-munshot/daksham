@@ -33,7 +33,7 @@ function readConfig() {
     SCREENER_EMAIL,
     SCREENER_PASSWORD,
     SCREEN_URL = 'https://www.screener.in/screens/3706521/daksham-universe-mcap-25000/',
-    MAX_PAGES = '60',
+    MAX_PAGES = '250',
     START_AT = '0',
   } = process.env;
 
