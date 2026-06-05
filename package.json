@@ -1,0 +1,18 @@
+{
+  "name": "daksham",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Data pipeline for an Indian-equities dashboard. Screener.in universe scraper.",
+  "scripts": {
+    "scrape:universe": "node scrapers/screener-universe.mjs",
+    "test": "node --test \"scrapers/**/*.test.mjs\""
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "cheerio": "^1.0.0",
+    "playwright": "^1.49.0"
+  }
+}
