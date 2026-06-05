@@ -82,15 +82,23 @@ async function login(page, email, password) {
 }
 
 // Fetch a screen page and return its HTML, or null if the results table never
-// appears (used to detect that we have paginated past the last page).
-async function fetchPageHtml(page, url, isFirst) {
-  await page.goto(url, { waitUntil: 'domcontentloaded' });
-  try {
-    await page.waitForSelector('table.data-table', { timeout: isFirst ? 20000 : 10000 });
-  } catch {
-    return null;
+// appears after several attempts. Retrying guards against a transient load
+// failure being mistaken for the end of the screen, which would silently
+// truncate the universe.
+async function fetchPageHtml(page, url, isFirst, attempts = 3) {
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    await page.goto(url, { waitUntil: 'domcontentloaded' });
+    try {
+      await page.waitForSelector('table.data-table', { timeout: isFirst ? 20000 : 12000 });
+      return await page.content();
+    } catch {
+      if (attempt < attempts) {
+        console.warn(`  retry  : no data-table on attempt ${attempt}/${attempts} for ${url}`);
+        await sleep(1000 * attempt);
+      }
+    }
   }
-  return page.content();
+  return null;
 }
 
 async function main() {
