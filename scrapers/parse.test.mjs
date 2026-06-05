@@ -217,4 +217,6 @@ test('inspectTable summarises structure and shows real cell values', () => {
   assert.match(summary, /data-table count: 1/);
   assert.match(summary, /headers\(5\)/); // 5 header cells detected
   assert.match(summary, /1234\.50|1,234\.50/); // first data row values surfaced
+  assert.match(summary, /detected total pages: 3/); // pagination diagnostics
+  assert.match(summary, /of 3/);
 });

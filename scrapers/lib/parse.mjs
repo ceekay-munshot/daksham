@@ -189,6 +189,13 @@ export function inspectTable(html) {
   const tables = $('table.data-table');
   const out = [`data-table count: ${tables.length}`];
 
+  // Pagination diagnostics: show every "X of Y" string so we can confirm the
+  // total-pages parse (and whether a surprising page count is real).
+  const bodyText = collapse($('body').text());
+  const pageMatches = bodyText.match(/(?:page\s+)?\d+\s+of\s+\d+/gi) || [];
+  out.push(`detected total pages: ${detectTotalPages($)}`);
+  out.push(`"x of y" matches: ${JSON.stringify(pageMatches.slice(0, 8))}`);
+
   tables.each((ti, t) => {
     const $t = $(t);
     const firstData = $t
