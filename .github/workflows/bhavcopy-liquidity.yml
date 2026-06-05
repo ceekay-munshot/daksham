@@ -1,0 +1,84 @@
+name: Bhavcopy volume gate
+
+# Manual-only for now. Reads public/data/daksham-universe.json, computes each
+# NSE name's 30-day average daily traded value from NSE bhavcopy, and commits the
+# >= ₹4 Cr subset to public/data/liquid-universe.json.
+on:
+  workflow_dispatch:
+    inputs:
+      threshold_cr:
+        description: "ADTV threshold in ₹ Cr (pass if avg daily traded value >= this)."
+        required: false
+        default: "4"
+      days:
+        description: "Trading days to average over."
+        required: false
+        default: "30"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: bhavcopy-liquidity
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      # This scraper uses fetch(), not Playwright — skip the browser download.
+      - name: Install dependencies
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+        run: npm ci
+
+      - name: Unit tests
+        run: npm test
+
+      # Bhavcopy CSVs are immutable once published; cache them so re-runs only
+      # fetch days they don't already have. Unique key per run, restore latest.
+      - name: Cache bhavcopy CSVs
+        uses: actions/cache@v4
+        with:
+          path: .cache/bhav
+          key: bhav-${{ github.run_id }}
+          restore-keys: |
+            bhav-
+
+      - name: Compute liquid universe
+        env:
+          FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
+          ADTV_THRESHOLD_CR: ${{ inputs.threshold_cr }}
+          BHAV_DAYS: ${{ inputs.days }}
+        run: node scrapers/bhavcopy-liquidity.mjs
+
+      - name: Upload liquidity artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: liquid-universe
+          if-no-files-found: error
+          path: |
+            public/data/liquid-universe.json
+            public/data/liquidity-debug.json
+
+      - name: Commit liquid universe to public/data/
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/data/liquid-universe.json public/data/liquidity-debug.json
+          if git diff --cached --quiet; then
+            echo "No changes to liquidity data; nothing to commit."
+          else
+            git commit -m "data: refresh liquid universe (bhavcopy volume gate) [skip ci]"
+            git push origin HEAD:${{ github.ref_name }}
+          fi

@@ -55,3 +55,44 @@ SCREENER_EMAIL=you@example.com SCREENER_PASSWORD=secret node scrapers/screener-u
 
 (`npm run scrape:universe` runs the same command. `npm test` runs the parser unit
 tests, which need no browser or network.)
+
+## Bhavcopy volume gate
+
+`scrapers/bhavcopy-liquidity.mjs` reads `daksham-universe.json`, computes each
+NSE-listed company's **30-trading-day average daily traded value** from NSE
+"full" bhavcopy (`TURNOVER_LACS / 100 = ₹ Cr`, EQ series only), and writes the
+subset with avg **≥ ₹4 Cr** to `liquid-universe.json`. A day a symbol did not
+trade counts as 0 (the denominator is the full window). BSE-only names (numeric
+Screener slugs) have no NSE turnover and are excluded for now (counted + listed
+in the debug file).
+
+It primes an NSE session (homepage GET for cookies, then cookie + UA + Referer on
+each archive fetch) and caches CSVs under `.cache/bhav/` so re-runs don't
+re-download. Needs **≥ 20** valid trading days or it fails with a clear message.
+
+### Outputs
+
+| File | Contents |
+| --- | --- |
+| `public/data/liquid-universe.json` | Passing rows = original universe row + `{ adtv_30d_cr, days_counted, liquidity_source: "nse" }` |
+| `public/data/liquidity-debug.json` | `{ generated_at, threshold_cr, days_used, universe_in, passed, failed, bse_only_excluded, bse_only_slugs, sample_failed }` |
+
+### Environment / secrets
+
+| Variable | Required | Default | Purpose |
+| --- | :---: | --- | --- |
+| `FIRECRAWL_API_KEY` | — | — | Optional fallback fetch if NSE blocks direct requests |
+| `ADTV_THRESHOLD_CR` | — | `4` | Pass threshold (₹ Cr) |
+| `BHAV_DAYS` | — | `30` | Trading days to average over |
+| `BHAV_MIN_DAYS` | — | `20` | Minimum valid days or the run fails |
+| `BHAV_MAX_LOOKBACK` | — | `60` | Calendar days to walk back while collecting |
+
+### Run locally
+
+```bash
+node scrapers/bhavcopy-liquidity.mjs
+```
+
+(`npm run scrape:liquidity` runs the same command. NSE blocks many datacenter
+IPs — if you get 0 valid days locally, run it via the **Bhavcopy volume gate**
+GitHub Action, or set `FIRECRAWL_API_KEY`.)
