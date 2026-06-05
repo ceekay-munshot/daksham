@@ -61,6 +61,8 @@ export function canonicalKey(header) {
 // Header tokens that are not data columns and should be skipped.
 const SKIP_HEADERS = new Set(['', 'sno', 'srno', 'srno.', 'name']);
 
+const COMPANY_LINK = 'a[href^="/company/"]';
+
 // Detect the total number of pages from the "Page X of Y" pagination text.
 function detectTotalPages($) {
   const text = collapse($('body').text());
@@ -68,11 +70,48 @@ function detectTotalPages($) {
   return m ? parseInt(m[2], 10) : null;
 }
 
+// Locate the header cells of a results table, tolerating tables with or without
+// an explicit <thead>, and headers built from <th> or <td>. Screener's screen
+// table does not use <thead><th>, so the fallback is the load-bearing path: the
+// first row that has no /company/ link is the header row.
+export function findHeaderCells($, table) {
+  let cells = table.find('thead th');
+  if (cells.length) return cells;
+  cells = table.find('thead td');
+  if (cells.length) return cells;
+
+  let headerCells = $();
+  table.find('tr').each((_, tr) => {
+    if (headerCells.length) return;
+    const $tr = $(tr);
+    if ($tr.find(COMPANY_LINK).length) return; // a data row, not the header
+    const c = $tr.find('th').length ? $tr.find('th') : $tr.find('td');
+    if (c.length) headerCells = c;
+  });
+  return headerCells;
+}
+
+function buildHeaderMap($, table) {
+  const headers = {};
+  findHeaderCells($, table).each((i, cell) => {
+    const raw = collapse($(cell).text());
+    headers[i] = { raw, key: canonicalKey(raw) };
+  });
+  return headers;
+}
+
+// The data rows of the table. Prefer <tbody>, fall back to all <tr> (the header
+// row is skipped later because it has no /company/ link).
+function findDataRows(table) {
+  const rows = table.find('tbody tr');
+  return rows.length ? rows : table.find('tr');
+}
+
 // Parse a single <tr>. Returns a row object, or null if the row is not a company
-// row (e.g. a separator/aggregate row with no /company/ link). Throws on truly
-// malformed input so the caller can log-and-continue per the robustness spec.
+// row (e.g. the header row, or a separator/aggregate row with no /company/ link).
+// Throws on truly malformed input so the caller can log-and-continue.
 function parseRow($, $tr, headers) {
-  const link = $tr.find('a[href^="/company/"]').first();
+  const link = $tr.find(COMPANY_LINK).first();
   if (!link.length) return null;
 
   const name = collapse(link.text());
@@ -86,7 +125,7 @@ function parseRow($, $tr, headers) {
     const header = headers[i];
     if (!header) return;
     const $td = $(td);
-    if ($td.find('a[href^="/company/"]').length) return; // the name cell, captured above
+    if ($td.find(COMPANY_LINK).length) return; // the name cell, captured above
     if (SKIP_HEADERS.has(normalizeHeader(header.raw))) return;
 
     const value = cleanValue($td.text());
@@ -112,14 +151,9 @@ export function parseScreenTable(html) {
 
   if (!hasTable) return { hasTable, totalPages, rows, warnings };
 
-  // Map column index -> { raw label, canonical key } from the THEAD.
-  const headers = {};
-  table.find('thead th').each((i, th) => {
-    const raw = collapse($(th).text());
-    headers[i] = { raw, key: canonicalKey(raw) };
-  });
+  const headers = buildHeaderMap($, table);
 
-  table.find('tbody tr').each((idx, tr) => {
+  findDataRows(table).each((idx, tr) => {
     try {
       const row = parseRow($, $(tr), headers);
       if (row) rows.push(row);
@@ -142,4 +176,40 @@ export function dedupeByPath(rows, seen = new Set()) {
     fresh.push(r);
   }
   return fresh;
+}
+
+// Structural diagnostics for debugging the parser against the live DOM. Prints,
+// per data-table: the thead th/td counts, the detected header labels, and the
+// first data row's actual cell texts — which reveals whether values are even
+// present in the server-rendered HTML.
+export function inspectTable(html) {
+  const $ = cheerio.load(html);
+  $('script, style, noscript').remove();
+
+  const tables = $('table.data-table');
+  const out = [`data-table count: ${tables.length}`];
+
+  tables.each((ti, t) => {
+    const $t = $(t);
+    const firstData = $t
+      .find('tr')
+      .filter((_, tr) => $(tr).find(COMPANY_LINK).length)
+      .first();
+    const headerTexts = findHeaderCells($, $t)
+      .map((_, c) => collapse($(c).text()))
+      .get();
+    const cellTexts = firstData
+      .find('td')
+      .map((_, c) => collapse($(c).text()))
+      .get();
+
+    out.push(
+      `table[${ti}] thead th=${$t.find('thead th').length} thead td=${$t.find('thead td').length} ` +
+        `tbody tr=${$t.find('tbody tr').length} firstDataRow td=${firstData.find('td').length}`
+    );
+    out.push(`table[${ti}] headers(${headerTexts.length}): ${JSON.stringify(headerTexts)}`);
+    out.push(`table[${ti}] firstRowCells: ${JSON.stringify(cellTexts)}`);
+  });
+
+  return out.join('\n');
 }

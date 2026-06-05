@@ -14,6 +14,11 @@ on:
         description: "Resume from this page number (0 = start fresh)."
         required: false
         default: "0"
+      debug_dump_html:
+        description: "Dump raw page HTML + log the live table structure (parser debugging)."
+        type: boolean
+        required: false
+        default: false
 
 # Needed so the job can commit the refreshed data back to the branch.
 permissions:
@@ -55,6 +60,7 @@ jobs:
           SCREENER_PASSWORD: ${{ secrets.SCREENER_PASSWORD }}
           MAX_PAGES: ${{ inputs.max_pages }}
           START_AT: ${{ inputs.start_at }}
+          DEBUG_DUMP_HTML: ${{ inputs.debug_dump_html }}
         run: node scrapers/screener-universe.mjs
 
       - name: Upload universe artifact
@@ -65,6 +71,14 @@ jobs:
           path: |
             public/data/daksham-universe.json
             public/data/universe-metadata.json
+
+      - name: Upload debug HTML
+        if: ${{ always() && inputs.debug_dump_html }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-html
+          if-no-files-found: ignore
+          path: public/data/debug/
 
       - name: Commit refreshed universe to public/data/
         run: |

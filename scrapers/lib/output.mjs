@@ -66,6 +66,17 @@ export function writeUniverse({ outDir, rows, source }) {
   return { jsonPath, csvPath, metaPath };
 }
 
+// Debug helper: dump a page's raw HTML to public/data/debug/page-N.html so the
+// live DOM can be inspected. Never committed (see .gitignore); uploaded as a
+// separate CI artifact instead.
+export function dumpPageHtml(outDir, page, html) {
+  const dir = path.join(outDir, 'debug');
+  mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, `page-${page}.html`);
+  writeFileSync(file, html);
+  return file;
+}
+
 // Load a previously written universe so START_AT can resume without losing the
 // pages already scraped. Returns [] if there is nothing usable on disk.
 export function loadExistingUniverse(outDir) {

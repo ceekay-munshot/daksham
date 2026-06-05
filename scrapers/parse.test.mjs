@@ -8,6 +8,7 @@ import {
   collapse,
   normalizeHeader,
   dedupeByPath,
+  inspectTable,
   CANONICAL_KEYS,
 } from './lib/parse.mjs';
 import { toCsv, unionColumns, dataColumns } from './lib/output.mjs';
@@ -159,4 +160,61 @@ test('output: column union + CSV', () => {
   const lines = csv.trimEnd().split('\n');
   assert.equal(lines.length, 1 + rows.length); // header + 2 data rows
   assert.ok(lines[0].startsWith('name,path,slug,'));
+});
+
+// --- Robustness to table shapes other than <thead><th> -----------------------
+// Screener's live table does NOT use <thead><th>, so the parser must also handle
+// a header row built from <td>, with or without an explicit <thead>/<tbody>.
+
+// No <thead>: the header is the first <tr> (td cells) inside <tbody>.
+const FIXTURE_NO_THEAD_TD = `<table class="data-table">
+  <tbody>
+    <tr>
+      <td>S.No.</td><td>Name</td><td>CMP Rs.</td><td>P/E</td><td>Mar Cap Rs.Cr.</td>
+    </tr>
+    <tr>
+      <td>1</td>
+      <td><a href="/company/RELIANCE/consolidated/">Reliance Industr</a></td>
+      <td>₹ 1,234.50</td><td>22.50</td><td>16,78,900</td>
+    </tr>
+  </tbody>
+</table>
+<div>Page 1 of 3</div>`;
+
+// No <thead> and no <tbody>: header row uses <th>.
+const FIXTURE_NO_THEAD_TH = `<table class="data-table">
+  <tr><th>S.No.</th><th>Name</th><th>CMP</th><th>P/E</th><th>Mar Cap</th></tr>
+  <tr>
+    <td>1</td>
+    <td><a href="/company/TCS/">TCS</a></td>
+    <td>3,900</td><td>30.1</td><td>14,00,000</td>
+  </tr>
+</table>`;
+
+test('parses a headerless table with <td> header cells', () => {
+  const { rows, totalPages } = parseScreenTable(FIXTURE_NO_THEAD_TD);
+  assert.equal(totalPages, 3);
+  assert.equal(rows.length, 1, 'header row (no /company/ link) is not a company');
+  const [r] = rows;
+  assert.equal(r.slug, 'RELIANCE');
+  assert.equal(r.cmp, '1234.50');
+  assert.equal(r.pe, '22.50');
+  assert.equal(r.mkt_cap, '1678900');
+});
+
+test('parses a table with no thead/tbody and <th> header cells', () => {
+  const { rows } = parseScreenTable(FIXTURE_NO_THEAD_TH);
+  assert.equal(rows.length, 1);
+  const [r] = rows;
+  assert.equal(r.slug, 'TCS');
+  assert.equal(r.cmp, '3900');
+  assert.equal(r.pe, '30.1');
+  assert.equal(r.mkt_cap, '1400000');
+});
+
+test('inspectTable summarises structure and shows real cell values', () => {
+  const summary = inspectTable(FIXTURE_NO_THEAD_TD);
+  assert.match(summary, /data-table count: 1/);
+  assert.match(summary, /headers\(5\)/); // 5 header cells detected
+  assert.match(summary, /1234\.50|1,234\.50/); // first data row values surfaced
 });

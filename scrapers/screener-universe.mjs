@@ -14,8 +14,8 @@ import { chromium } from 'playwright';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { parseScreenTable, dedupeByPath } from './lib/parse.mjs';
-import { writeUniverse, loadExistingUniverse } from './lib/output.mjs';
+import { parseScreenTable, dedupeByPath, inspectTable } from './lib/parse.mjs';
+import { writeUniverse, loadExistingUniverse, dumpPageHtml } from './lib/output.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const OUT_DIR = path.resolve(__dirname, '..', 'public', 'data');
@@ -26,6 +26,7 @@ const DESKTOP_UA =
   '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const truthy = (v) => ['1', 'true', 'yes', 'on'].includes(String(v || '').toLowerCase());
 
 function readConfig() {
   const {
@@ -56,6 +57,7 @@ function readConfig() {
     base,
     maxPages,
     startPage,
+    debug: truthy(process.env.DEBUG_DUMP_HTML),
   };
 }
 
@@ -133,6 +135,12 @@ async function main() {
         }
         console.log(`page ${p} — no data-table, stopping.`);
         break;
+      }
+
+      if (cfg.debug) {
+        const file = dumpPageHtml(OUT_DIR, p, html);
+        console.log(`  debug  : wrote ${file}`);
+        if (p === cfg.startPage) console.log(inspectTable(html));
       }
 
       const { hasTable, totalPages: tp, rows, warnings } = parseScreenTable(html);
