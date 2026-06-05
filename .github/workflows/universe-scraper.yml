@@ -1,0 +1,79 @@
+name: Universe scraper
+
+# Manual-only for now. Once the bhavcopy + metrics scrapers exist we'll compose
+# the scheduled pipeline; until then this is triggered by hand to (re)build the
+# Screener candidate universe and commit it to public/data/.
+on:
+  workflow_dispatch:
+    inputs:
+      max_pages:
+        description: "Max pages to paginate (safety cap). Set to 1-2 for a quick live smoke test."
+        required: false
+        default: "60"
+      start_at:
+        description: "Resume from this page number (0 = start fresh)."
+        required: false
+        default: "0"
+
+# Needed so the job can commit the refreshed data back to the branch.
+permissions:
+  contents: write
+
+# Don't let two manual runs race on the commit-back.
+concurrency:
+  group: universe-scraper
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Fast, browser-free gate: if the parser is broken, fail before the
+      # expensive browser download and live scrape.
+      - name: Unit tests (parser)
+        run: npm test
+
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: Scrape Screener universe
+        env:
+          SCREENER_EMAIL: ${{ secrets.SCREENER_EMAIL }}
+          SCREENER_PASSWORD: ${{ secrets.SCREENER_PASSWORD }}
+          MAX_PAGES: ${{ inputs.max_pages }}
+          START_AT: ${{ inputs.start_at }}
+        run: node scrapers/screener-universe.mjs
+
+      - name: Upload universe artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: daksham-universe
+          if-no-files-found: error
+          path: |
+            public/data/daksham-universe.json
+            public/data/universe-metadata.json
+
+      - name: Commit refreshed universe to public/data/
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/data/daksham-universe.json public/data/universe-metadata.json
+          if git diff --cached --quiet; then
+            echo "No changes to universe data; nothing to commit."
+          else
+            git commit -m "data: refresh Screener universe [skip ci]"
+            git push origin HEAD:${{ github.ref_name }}
+          fi
