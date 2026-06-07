@@ -52,29 +52,43 @@ function readConfig() {
   };
 }
 
-// Click a schedule-expand button (e.g. "Expenses") inside a section and wait for
-// an expected sub-row to be injected. Best-effort: failures leave the sub-row
-// fields empty rather than aborting the company.
-async function clickExpand(page, sectionId, buttonText, expectText) {
-  try {
+// Expand a schedule row (e.g. "Expenses") inside a section so its sub-rows
+// (Material Cost %, Inventories) are injected. Screener loads these via AJAX and
+// the click is occasionally dropped (rapid sequential expands race), so detect
+// whether the row actually expanded — the section's row count grows — and
+// re-click only if it didn't. This avoids toggling an already-open row shut and
+// avoids burning the full timeout on companies that legitimately lack the row.
+async function expandRow(page, sectionId, buttonText, expectText, attempts = 3) {
+  const rowsSelector = `${sectionId} table.data-table tr`;
+  const targetPresent = async () =>
+    expectText
+      ? (await page.locator(sectionId).getByText(expectText, { exact: false }).first().count()) > 0
+      : false;
+
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    if (await targetPresent()) return; // already expanded with the row we need
+
     const btn = page.locator(`${sectionId} button`, { hasText: buttonText }).first();
-    if (!(await btn.count())) return;
-    await btn.click({ timeout: 4000 });
-    if (expectText) {
-      // Bounded wait for the AJAX-injected sub-row. 4s is enough for the P&L /
-      // quarters schedule to load (2.5s missed it for some names); companies
-      // that genuinely lack the sub-row just hit the cap once per section.
-      await page
-        .locator(sectionId)
-        .getByText(expectText, { exact: false })
-        .first()
-        .waitFor({ timeout: 4000 })
-        .catch(() => {});
-    } else {
-      await page.waitForTimeout(500);
+    if (!(await btn.count())) return; // no such expandable row (e.g. a financial co)
+
+    const before = await page.locator(rowsSelector).count();
+    try {
+      await btn.click({ timeout: 4000 });
+    } catch {
+      return;
     }
-  } catch {
-    /* ignore — sub-row simply won't be present */
+
+    // Wait until the row actually expands (sub-rows get injected).
+    await page
+      .waitForFunction(
+        ([sel, n]) => document.querySelectorAll(sel).length > n,
+        [rowsSelector, before],
+        { timeout: 5000 }
+      )
+      .catch(() => {});
+
+    if ((await page.locator(rowsSelector).count()) > before) return; // expanded
+    await page.waitForTimeout(300); // click was dropped — settle and retry
   }
 }
 
@@ -91,9 +105,9 @@ async function fetchCompanyHtml(page, url, patient) {
   await page.waitForSelector('#profit-loss', { timeout: patient ? 12000 : 6000 }).catch(() => {});
 
   // Expand the rows whose sub-rows we need (Material Cost %, Inventories).
-  await clickExpand(page, '#profit-loss', 'Expenses', 'Material Cost');
-  await clickExpand(page, '#quarters', 'Expenses', 'Material Cost');
-  await clickExpand(page, '#balance-sheet', 'Other Assets', 'Inventories');
+  await expandRow(page, '#profit-loss', 'Expenses', 'Material Cost');
+  await expandRow(page, '#quarters', 'Expenses', 'Material Cost');
+  await expandRow(page, '#balance-sheet', 'Other Assets', 'Inventories');
 
   return page.content();
 }
