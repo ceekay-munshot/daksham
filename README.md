@@ -174,3 +174,20 @@ node eval/run.mjs            # or: npm run evaluate
 Reads `daksham-companies.json`, writes `public/data/daksham-evaluated.json`
 (array of `{ company, params }`, minified), and prints a per-check summary
 (PASS / FAIL / NA-sector / NA-data).
+
+## Dashboard
+
+`public/index.html` is a static, **CDN-only** research dashboard (Tailwind +
+Lucide + Google Fonts). It fetches `public/data/*.json`, imports
+`eval/evaluate.mjs`, and computes every verdict **client-side** — bright/airy UI
+with one signature dark hero, a sortable / searchable / sector- & check-filterable
+947-company grid, a **shortlist** control (min green signals), and a per-company
+**dossier** slide-over (valuation · growth & margins · cash & capital · ownership ·
+moat) with inline-SVG sparklines.
+
+Serve from the **repo root** so both `public/` and `eval/` are reachable:
+
+```bash
+python3 -m http.server 8000
+# then open http://localhost:8000/public/
+```

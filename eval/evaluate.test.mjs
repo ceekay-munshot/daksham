@@ -43,12 +43,13 @@ test('yoy_gross_margin_12q', () => {
   assert.ok(sec.note.startsWith('Not applicable'));
 });
 
-// ── cfo_rising_3y ───────────────────────────────────────────────────────────
+// ── cfo_rising_3y (latest >= 3Y prior; interim dips allowed) ────────────────
 test('cfo_rising_3y', () => {
   const K = 'cfo_rising_3y';
-  assert.equal(verdict({ cfo_series: '50|100|150|200' }, K), 'PASS'); // last 3 strictly up
-  assert.equal(verdict({ cfo_series: '100|200|150' }, K), 'FAIL'); // not strictly increasing
-  assert.ok(note({ cfo_series: '100|200' }, K).startsWith('Insufficient history'));
+  assert.equal(P({ cfo_series: '100|50|60|120' })[K].label, 'Operating cash flow trending up (3Y)');
+  assert.equal(verdict({ cfo_series: '100|50|60|120' }, K), 'PASS'); // 120 >= 100 despite the dip
+  assert.equal(verdict({ cfo_series: '200|150|100|50' }, K), 'FAIL'); // 50 < 200
+  assert.ok(note({ cfo_series: '100|200' }, K).startsWith('Insufficient history')); // need ≥4
 });
 
 // ── ebitda_gt_110_sales ─────────────────────────────────────────────────────
@@ -72,11 +73,14 @@ test('sales_fa_below_0_8x', () => {
   assert.ok(note({ revenue_series: '100|100', net_block_series: '20|20' }, K).startsWith('Insufficient history'));
 });
 
-// ── promoter_trend_up ───────────────────────────────────────────────────────
+// ── promoter_trend_up (stable or rising; only a real decline fails) ─────────
 test('promoter_trend_up', () => {
   const K = 'promoter_trend_up';
-  assert.equal(verdict({ promoter_holding_series: '50|50|50|50|51' }, K), 'PASS'); // Δ +1.0 > 0.5
-  assert.equal(verdict({ promoter_holding_series: '50|50|50|50|50' }, K), 'FAIL'); // Δ 0
+  assert.equal(P({ promoter_holding_series: '50|50|50|50|51' })[K].label, 'Promoter holding stable or rising (12mo)');
+  assert.equal(verdict({ promoter_holding_series: '50|50|50|50|51' }, K), 'PASS'); // rising
+  assert.equal(verdict({ promoter_holding_series: '50|50|50|50|50' }, K), 'PASS'); // flat now PASSES
+  assert.equal(verdict({ promoter_holding_series: '50|50|50|50|49.95' }, K), 'PASS'); // within -0.1 tolerance
+  assert.equal(verdict({ promoter_holding_series: '52|51|51|50|49' }, K), 'FAIL'); // genuine decline
   assert.ok(note({ promoter_holding_series: '50|50|50' }, K).startsWith('Insufficient history'));
 });
 

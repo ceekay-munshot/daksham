@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Daksham · Equity Research Intelligence</title>
+    <meta name="description" content="Daksham — a disciplined Indian-equities research dashboard. 5,019-company universe, ₹4 Cr liquidity gate, per-company signal checks." />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              display: ['Sora', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+              sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+            },
+            colors: {
+              brand: {
+                50: '#eef2ff',
+                100: '#e0e7ff',
+                200: '#c7d2fe',
+                300: '#a5b4fc',
+                400: '#818cf8',
+                500: '#6366f1',
+                600: '#4f46e5',
+                700: '#4338ca',
+                800: '#3730a3',
+                900: '#312e81',
+                950: '#1e1b4b',
+              },
+            },
+          },
+        },
+      };
+    </script>
+
+    <link rel="stylesheet" href="css/styles.css" />
+  </head>
+
+  <body class="bg-slate-50 text-slate-900 font-sans antialiased">
+    <!-- ── Hero (signature dark band) ─────────────────────────────────────── -->
+    <header class="hero">
+      <div class="hero-glow" aria-hidden="true"></div>
+      <div class="mx-auto max-w-[1400px] px-6 py-8 lg:py-10 relative">
+        <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-8">
+          <div class="reveal">
+            <div class="flex items-center gap-3">
+              <span class="brand-mark">
+                <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M5 6h13a8 8 0 0 1 0 16H5z" stroke="url(#bg1)" stroke-width="2.4" />
+                  <path d="M5 12h17M5 18h11" stroke="url(#bg1)" stroke-width="2.4" stroke-linecap="round" />
+                  <defs>
+                    <linearGradient id="bg1" x1="4" y1="6" x2="28" y2="26" gradientUnits="userSpaceOnUse">
+                      <stop stop-color="#a5b4fc" />
+                      <stop offset="1" stop-color="#f0abfc" />
+                    </linearGradient>
+                  </defs>
+                </svg>
+              </span>
+              <div>
+                <h1 class="font-display text-2xl lg:text-[28px] font-extrabold tracking-tight text-white leading-none">
+                  Daksham
+                </h1>
+                <p class="text-brand-200/80 text-[13px] font-medium tracking-wide mt-1">
+                  Equity Research Intelligence
+                </p>
+              </div>
+            </div>
+            <p class="mt-5 max-w-xl text-slate-300/90 text-[15px] leading-relaxed">
+              A disciplined, signal-driven view of India's investable mid- &amp; small-cap universe —
+              screened for liquidity, evaluated on the fundamentals that matter.
+            </p>
+            <div class="mt-4 flex items-center gap-2 text-[12.5px] text-slate-400">
+              <span class="live-dot"></span>
+              <span id="last-updated">Loading data…</span>
+            </div>
+          </div>
+
+          <!-- Funnel hero stat -->
+          <div class="hero-funnel reveal" style="animation-delay: 90ms">
+            <div class="funnel-step">
+              <span class="funnel-icon"><i data-lucide="layers"></i></span>
+              <div>
+                <div class="funnel-num" id="funnel-universe">—</div>
+                <div class="funnel-label">Universe · mcap &lt; ₹25k Cr</div>
+              </div>
+            </div>
+            <i data-lucide="chevron-right" class="funnel-arrow"></i>
+            <div class="funnel-step funnel-step--accent">
+              <span class="funnel-icon funnel-icon--accent"><i data-lucide="droplets"></i></span>
+              <div>
+                <div class="funnel-num" id="funnel-liquid">—</div>
+                <div class="funnel-label">Liquid · ₹4 Cr / 30-day ADV</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="mx-auto max-w-[1400px] px-6">
+      <!-- ── KPI band ─────────────────────────────────────────────────────── -->
+      <section id="kpis" class="kpi-grid -mt-7 relative z-10"></section>
+
+      <!-- ── Controls ─────────────────────────────────────────────────────── -->
+      <section class="controls-card reveal" style="animation-delay: 120ms">
+        <div class="controls-row">
+          <div class="search-box">
+            <i data-lucide="search"></i>
+            <input id="search" type="search" placeholder="Search company or symbol…" autocomplete="off" />
+          </div>
+          <div class="control-field">
+            <label>Sector</label>
+            <select id="sector-filter"></select>
+          </div>
+          <div class="control-field">
+            <label>Passes check</label>
+            <select id="check-filter"></select>
+          </div>
+          <div class="control-field">
+            <label>Market cap</label>
+            <select id="mcap-filter">
+              <option value="">All sizes</option>
+              <option value="0-2000">&lt; ₹2,000 Cr</option>
+              <option value="2000-8000">₹2,000–8,000 Cr</option>
+              <option value="8000-15000">₹8,000–15,000 Cr</option>
+              <option value="15000-25000">₹15,000–25,000 Cr</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="controls-row controls-row--shortlist">
+          <div class="shortlist">
+            <span class="shortlist-label">
+              <i data-lucide="sliders-horizontal"></i> Shortlist · min green signals
+            </span>
+            <div class="segmented" id="shortlist" role="tablist">
+              <button class="seg active" data-min="0">All</button>
+              <button class="seg" data-min="4">≥4</button>
+              <button class="seg" data-min="5">≥5</button>
+              <button class="seg" data-min="6">≥6</button>
+              <button class="seg" data-min="7">7 / 7</button>
+            </div>
+          </div>
+          <div class="showing">
+            <span id="showing-count">—</span>
+            <div id="active-chips" class="active-chips"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Master grid ──────────────────────────────────────────────────── -->
+      <section class="grid-card reveal" style="animation-delay: 150ms">
+        <div class="table-scroll">
+          <table class="master" id="master">
+            <thead id="master-head"></thead>
+            <tbody id="master-body"></tbody>
+          </table>
+        </div>
+        <div id="empty-state" class="empty-state hidden">
+          <i data-lucide="search-x"></i>
+          <p>No companies match these filters.</p>
+          <button id="clear-filters" class="btn-ghost">Clear filters</button>
+        </div>
+      </section>
+
+      <footer class="footer">
+        <span>Daksham · built on Screener.in fundamentals + NSE bhavcopy liquidity.</span>
+        <span class="footer-note">Signals are a count of passed checks — not investment advice.</span>
+      </footer>
+    </main>
+
+    <!-- ── Dossier slide-over ─────────────────────────────────────────────── -->
+    <div id="dossier-overlay" class="dossier-overlay hidden"></div>
+    <aside id="dossier" class="dossier" aria-hidden="true"></aside>
+
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+    <script type="module" src="js/app.js"></script>
+  </body>
+</html>

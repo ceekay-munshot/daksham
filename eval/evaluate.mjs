@@ -25,7 +25,7 @@ export const CONFIG = {
     sustainedContractionQuarters: 4, // FAIL if gm falls this many quarters in a row
   },
   cfoRising3y: {
-    years: 3, // last N annual CFO values must be strictly increasing
+    lookbackYears: 3, // PASS if latest annual CFO >= CFO this many years prior (net higher)
   },
   ebitdaGt110Sales: {
     ratio: 1.1, // EBITDA YoY growth must exceed ratio × sales YoY growth
@@ -36,7 +36,7 @@ export const CONFIG = {
   },
   promoterTrendUp: {
     lagQuarters: 4,
-    minDelta: 0.5, // PASS if latest - value_4q_ago > minDelta (pp)
+    minDelta: -0.1, // PASS if change >= this over 4Q — stable/flat passes, only a real fall fails
   },
   instTrendUp: {
     lagQuarters: 4,
@@ -218,14 +218,14 @@ function yoyGrossMargin12q(row) {
 
 function cfoRising3y(row) {
   const key = 'cfo_rising_3y';
-  const label = 'CFO Rising (3Y)';
-  const n = CONFIG.cfoRising3y.years;
+  const label = 'Operating cash flow trending up (3Y)';
+  const lb = CONFIG.cfoRising3y.lookbackYears;
   const cfo = parseSeries(row.cfo_series);
-  if (cfo.length < n) return naData(key, label, `need ≥${n} annual CFO, have ${cfo.length}`);
-  const last = cfo.slice(-n);
-  let pass = true;
-  for (let i = 1; i < last.length; i++) if (!(last[i] > last[i - 1])) pass = false;
-  return passFail(key, label, last.join(' → '), pass, `last ${n} CFO: ${last.join(', ')}`);
+  if (cfo.length < lb + 1) return naData(key, label, `need ≥${lb + 1} annual CFO, have ${cfo.length}`);
+  const latest = cfo[cfo.length - 1];
+  const prior = cfo[cfo.length - 1 - lb];
+  // Net higher across the window — interim dips are allowed.
+  return passFail(key, label, `${prior} → ${latest}`, latest >= prior, `latest CFO vs ${lb}Y prior`);
 }
 
 function ebitdaGt110Sales(row) {
@@ -285,7 +285,7 @@ function salesFaBelow(row) {
 
 function promoterTrendUp(row) {
   const key = 'promoter_trend_up';
-  const label = 'Promoter Holding Trend ↑';
+  const label = 'Promoter holding stable or rising (12mo)';
   const c = CONFIG.promoterTrendUp;
   const p = parseSeries(row.promoter_holding_series);
   if (p.length < c.lagQuarters + 1)
@@ -293,12 +293,13 @@ function promoterTrendUp(row) {
   const latest = p[p.length - 1];
   const ago = p[p.length - 1 - c.lagQuarters];
   const delta = latest - ago;
+  // Stable/flat passes; only a genuine decline (beyond rounding tolerance) fails.
   return passFail(
     key,
     label,
     `${ago.toFixed(2)}% → ${latest.toFixed(2)}% (Δ${signed(delta)})`,
-    delta > c.minDelta,
-    `pass if Δ > ${c.minDelta}pp over ${c.lagQuarters}Q`
+    delta >= c.minDelta,
+    `pass if holding did not fall over ${c.lagQuarters}Q (≥ ${c.minDelta}pp tolerance)`
   );
 }
 
