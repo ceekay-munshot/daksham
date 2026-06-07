@@ -17,6 +17,11 @@ on:
         description: "Max companies to crawl this run (blank = all). Set 3-5 for a smoke test."
         required: false
         default: ""
+      debug_dump_html:
+        description: "Dump each company's post-expansion HTML as an artifact (DOM debugging)."
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: write
@@ -54,6 +59,7 @@ jobs:
           SCREENER_PASSWORD: ${{ secrets.SCREENER_PASSWORD }}
           START_AT: ${{ inputs.start_at }}
           MAX_COMPANIES: ${{ inputs.max_companies }}
+          DEBUG_DUMP_HTML: ${{ inputs.debug_dump_html }}
         run: node scrapers/company-metrics.mjs
 
       - name: Upload companies artifact
@@ -65,6 +71,14 @@ jobs:
             public/data/daksham-companies.json
             public/data/daksham-companies.csv
             public/data/companies-metadata.json
+
+      - name: Upload debug HTML
+        if: ${{ always() && inputs.debug_dump_html }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: company-debug-html
+          if-no-files-found: ignore
+          path: public/data/debug/
 
       - name: Commit company metrics to public/data/
         run: |

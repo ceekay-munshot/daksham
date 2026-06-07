@@ -24,7 +24,17 @@ const JSON_PATH = path.join(OUT_DIR, 'daksham-companies.json');
 const CSV_PATH = path.join(OUT_DIR, 'daksham-companies.csv');
 const META_PATH = path.join(OUT_DIR, 'companies-metadata.json');
 
-const COMPANY_URL = (slug) => `https://www.screener.in/company/${encodeURIComponent(slug)}/`;
+const BASE = 'https://www.screener.in';
+const truthy = (v) => ['1', 'true', 'yes', 'on'].includes(String(v || '').toLowerCase());
+
+// Navigate to the path Screener itself recorded in the universe — it already
+// encodes /consolidated/ when consolidated financials exist, so we land on the
+// default view (consolidated when available, else standalone). Fall back to slug.
+function companyUrl(row) {
+  const p = String(row.path || '').trim();
+  if (p.startsWith('/company/')) return `${BASE}${p.endsWith('/') ? p : `${p}/`}`;
+  return `${BASE}/company/${encodeURIComponent(String(row.slug || '').trim())}/`;
+}
 
 function readConfig() {
   const { SCREENER_EMAIL, SCREENER_PASSWORD, START_AT = '0', MAX_COMPANIES = '' } = process.env;
@@ -33,7 +43,13 @@ function readConfig() {
   }
   const startAt = Math.max(0, parseInt(START_AT, 10) || 0);
   const maxCompanies = MAX_COMPANIES ? Math.max(1, parseInt(MAX_COMPANIES, 10)) : Infinity;
-  return { email: SCREENER_EMAIL, password: SCREENER_PASSWORD, startAt, maxCompanies };
+  return {
+    email: SCREENER_EMAIL,
+    password: SCREENER_PASSWORD,
+    startAt,
+    maxCompanies,
+    debug: truthy(process.env.DEBUG_DUMP_HTML),
+  };
 }
 
 // Click a schedule-expand button (e.g. "Expenses") inside a section and wait for
@@ -45,13 +61,14 @@ async function clickExpand(page, sectionId, buttonText, expectText) {
     if (!(await btn.count())) return;
     await btn.click({ timeout: 4000 });
     if (expectText) {
-      // Bounded wait for the AJAX-injected sub-row (keeps per-company time sane
-      // across ~947 names; companies without this sub-row just hit the cap once).
+      // Bounded wait for the AJAX-injected sub-row. 4s is enough for the P&L /
+      // quarters schedule to load (2.5s missed it for some names); companies
+      // that genuinely lack the sub-row just hit the cap once per section.
       await page
         .locator(sectionId)
         .getByText(expectText, { exact: false })
         .first()
-        .waitFor({ timeout: 2500 })
+        .waitFor({ timeout: 4000 })
         .catch(() => {});
     } else {
       await page.waitForTimeout(500);
@@ -63,8 +80,8 @@ async function clickExpand(page, sectionId, buttonText, expectText) {
 
 // Navigate to a company page, wait for the ribbon + sections, expand the
 // schedules we read sub-rows from, and return the page HTML (or null).
-async function fetchCompanyHtml(page, slug, patient) {
-  const html = await gotoWithRetry(page, COMPANY_URL(slug), {
+async function fetchCompanyHtml(page, url, patient) {
+  const html = await gotoWithRetry(page, url, {
     waitFor: '#top-ratios',
     isFirst: patient,
     attempts: patient ? 3 : 2,
@@ -115,6 +132,14 @@ function loadExisting() {
   }
 }
 
+// Debug: dump a company's post-expansion HTML (gitignored; uploaded as a CI
+// artifact when DEBUG_DUMP_HTML is set) so the live DOM can be inspected.
+function dumpCompanyHtml(slug, html) {
+  const dir = path.join(OUT_DIR, 'debug');
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(path.join(dir, `company-${slug.replace(/[^A-Za-z0-9_-]/g, '_')}.html`), html);
+}
+
 async function main() {
   const cfg = readConfig();
 
@@ -150,16 +175,19 @@ async function main() {
         continue;
       }
 
+      const url = companyUrl(row);
       try {
-        let html = await fetchCompanyHtml(page, slug, false);
-        let parsed = html ? parseCompanyPage(html) : null;
+        let html = await fetchCompanyHtml(page, url, false);
+        let parsed = html ? parseCompanyPage(html, { url }) : null;
 
         if (!looksComplete(parsed)) {
           // Retry once with extra patience if the ribbon/sections didn't render.
           await sleep(500);
-          html = await fetchCompanyHtml(page, slug, true);
-          parsed = html ? parseCompanyPage(html) : null;
+          html = await fetchCompanyHtml(page, url, true);
+          parsed = html ? parseCompanyPage(html, { url }) : null;
         }
+
+        if (cfg.debug && html) dumpCompanyHtml(slug, html);
 
         if (!looksComplete(parsed)) {
           failures.push({ slug, error: 'ribbon/sections did not render' });

@@ -134,8 +134,16 @@ function detectView($) {
   return '';
 }
 
+// Fallback when the page text has no explicit "X Figures" label (e.g. a
+// standalone-only company with no view toggle): infer from the URL we navigated.
+function viewFromUrl(url) {
+  if (!url) return '';
+  return /\/consolidated\/?(?:[#?].*)?$/.test(url) ? 'consolidated' : 'standalone';
+}
+
 // Extract every field Daksham needs from a (post-expansion) company page HTML.
-export function parseCompanyPage(html) {
+// `url` is the page we navigated (used to record the financials view reliably).
+export function parseCompanyPage(html, { url } = {}) {
   const $ = cheerio.load(html);
   $('script, style, noscript').remove();
 
@@ -200,7 +208,7 @@ export function parseCompanyPage(html) {
       : '';
 
   return {
-    financials_view: detectView($),
+    financials_view: detectView($) || viewFromUrl(url),
 
     stock_pe: ribbon.stock_pe ?? '',
     roce: ribbon.roce ?? '',

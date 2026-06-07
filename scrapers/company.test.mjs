@@ -152,6 +152,26 @@ test('parseCompanyPage: missing sections never crash, fields default to ""', () 
   assert.equal(c.broad_sector, '');
 });
 
+test('financials_view: explicit label wins, else inferred from the URL', () => {
+  const bare =
+    '<html><body><ul id="top-ratios"><li><span class="name">Current Price</span>' +
+    '<span class="value"><span class="number">100</span></span></li></ul></body></html>';
+  // No "X Figures" label -> infer from the URL path.
+  assert.equal(
+    parseCompanyPage(bare, { url: 'https://www.screener.in/company/X/consolidated/' }).financials_view,
+    'consolidated'
+  );
+  assert.equal(
+    parseCompanyPage(bare, { url: 'https://www.screener.in/company/X/' }).financials_view,
+    'standalone'
+  );
+  // Explicit page label still wins over the URL.
+  assert.equal(
+    parseCompanyPage(FIXTURE, { url: 'https://www.screener.in/company/X/' }).financials_view,
+    'consolidated'
+  );
+});
+
 test('toCsv: union header, series stay pipe-delimited', () => {
   const c = parseCompanyPage(FIXTURE);
   const rows = [{ slug: 'ACME', name: 'Acme', ...c }];
