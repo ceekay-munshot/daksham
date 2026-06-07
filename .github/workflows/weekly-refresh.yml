@@ -1,0 +1,82 @@
+name: Weekly full refresh
+
+# Slow tier — re-scrapes the universe, re-gates liquidity, and re-crawls every
+# per-company fundamental (the crawl runs ~2.5–3h). Sunday night IST.
+# Eval stays client-side, so there is no eval step — this only refreshes data.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "23 18 * * 0" # 18:23 UTC = 23:53 IST Sun
+
+permissions:
+  contents: write
+
+concurrency:
+  group: weekly-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    env:
+      SCREENER_EMAIL: ${{ secrets.SCREENER_EMAIL }}
+      SCREENER_PASSWORD: ${{ secrets.SCREENER_PASSWORD }}
+      FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: 1 · Universe scraper
+        run: node scrapers/screener-universe.mjs
+
+      - name: 2 · Bhavcopy volume gate
+        run: node scrapers/bhavcopy-liquidity.mjs
+
+      - name: 3 · Per-company crawler
+        run: node scrapers/company-metrics.mjs
+
+      # Surface data even from a partial run.
+      - name: Upload data artifact
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: daksham-data
+          if-no-files-found: warn
+          path: public/data/*.json
+
+      - name: Commit refreshed data
+        if: ${{ always() && github.ref_name == github.event.repository.default_branch }}
+        run: |
+          set -e
+          BR="${{ github.event.repository.default_branch }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/data/daksham-universe.json public/data/universe-metadata.json public/data/daksham-universe.csv \
+                  public/data/liquid-universe.json public/data/liquidity-debug.json \
+                  public/data/daksham-companies.json public/data/daksham-companies.csv public/data/companies-metadata.json
+          if git diff --cached --quiet; then
+            echo "No changes — nothing to commit."
+            exit 0
+          fi
+          git commit -m "Weekly refresh ($(date -u +%F))"
+          for i in 1 2 3 4; do
+            if git push origin "HEAD:$BR"; then echo "pushed"; exit 0; fi
+            echo "push attempt $i failed — fetching + rebasing, then retrying"
+            git fetch origin "$BR"
+            git rebase "origin/$BR"
+            sleep $((2 ** i))
+          done
+          echo "push failed after 4 attempts"; exit 1

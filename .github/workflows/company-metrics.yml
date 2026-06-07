@@ -36,10 +36,10 @@ jobs:
     timeout-minutes: 300
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: "22"
           cache: "npm"
@@ -63,7 +63,7 @@ jobs:
         run: node scrapers/company-metrics.mjs
 
       - name: Upload companies artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: daksham-companies
           if-no-files-found: error
@@ -74,7 +74,7 @@ jobs:
 
       - name: Upload debug HTML
         if: ${{ always() && inputs.debug_dump_html }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: company-debug-html
           if-no-files-found: ignore

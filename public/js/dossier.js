@@ -197,6 +197,37 @@ export const isDossierOpen = () => !!elDossier && elDossier.classList.contains('
 
 export function openDossier(rec) {
   const r = rec.row;
+
+  if (rec.pending) {
+    charts = {};
+    const screener = `https://www.screener.in${r.path || ''}`;
+    elDossier.innerHTML = `
+      <div class="dossier-hero">
+        <div class="glow"></div>
+        <button class="modal-close" data-close aria-label="Close"><i data-lucide="x"></i></button>
+        <div class="dossier-name">${esc(rec.name)}</div>
+        <div class="dossier-tags">${sectorChip(rec.sector)}<span class="dossier-ind">${esc(rec.industry || '')}</span></div>
+        <div class="dossier-statline">
+          <div><div class="dossier-stat-num">${inrCr(rec.mcap)}</div><div class="dossier-stat-lbl">Market Cap</div></div>
+          <div><div class="dossier-stat-num">${price(r.cmp ?? r.current_price)}</div><div class="dossier-stat-lbl">CMP</div></div>
+          <div><div class="dossier-stat-num">${mult(rec.evEbitda)}</div><div class="dossier-stat-lbl">EV / EBITDA</div></div>
+          <div><div class="dossier-stat-num">${rec.adtv != null ? `₹${rec.adtv.toFixed(1)} Cr` : '—'}</div><div class="dossier-stat-lbl">ADV · 30d</div></div>
+        </div>
+      </div>
+      <div class="dossier-body">
+        <div class="pending-card">
+          <span class="pending-ic"><i data-lucide="hourglass"></i></span>
+          <div class="pending-title">Metrics pending</div>
+          <p>This name just entered the liquid universe (avg daily traded value ≥ ₹4 Cr over the last 30 sessions). Its full fundamentals and signal checks are gathered on the next weekly refresh.</p>
+          <a class="src-chip" href="${esc(screener)}" target="_blank" rel="noopener">
+            <span class="src-ic"><i data-lucide="shield-check"></i></span><span>View on <b>Screener.in</b></span><i data-lucide="external-link" class="src-ext"></i>
+          </a>
+        </div>
+      </div>`;
+    finishOpen();
+    return;
+  }
+
   const store = { n: 0, map: {} };
   const body = SECTIONS.map((s) => sectionHtml(s, rec, store)).join('') + moatHtml(rec);
   charts = store.map;
@@ -217,6 +248,10 @@ export function openDossier(rec) {
     </div>
     <div class="dossier-body">${body}</div>`;
 
+  finishOpen();
+}
+
+function finishOpen() {
   elDossier.setAttribute('aria-hidden', 'false');
   elDossier.scrollTop = 0;
   elOverlay.classList.remove('hidden');

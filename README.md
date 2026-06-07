@@ -191,3 +191,45 @@ Serve from the **repo root** so both `public/` and `eval/` are reachable:
 python3 -m http.server 8000
 # then open http://localhost:8000/public/
 ```
+
+The dashboard also reads a vendored copy at `public/js/evaluate.mjs` (kept in
+sync via `npm run sync:eval` + a unit-test guard) so `public/` is self-contained
+for static hosting (Cloudflare Pages, GitHub Pages, etc.).
+
+## Scheduled refresh (GitHub Actions)
+
+Two tiered workflows keep `public/data/` fresh. Eval is **client-side**, so
+neither runs an eval step — they only refresh data files. Both commit to the
+default branch with a fetch + rebase retry loop and skip when there's no diff
+(`permissions: contents: write`). Actions pinned to `@v5`.
+
+| Workflow | File | Schedule (IST) | Cron (UTC) | What it does |
+| --- | --- | --- | --- | --- |
+| **Daily liquidity** | `.github/workflows/daily-liquidity.yml` | ~06:47, Tue–Sat | `17 1 * * 2-6` | Re-runs the ₹4 Cr bhavcopy gate against the current `daksham-universe.json` → refreshes `liquid-universe.json` + `liquidity-debug.json`. Best-effort crawl of *new entrants* only. |
+| **Weekly full** | `.github/workflows/weekly-refresh.yml` | ~23:53, Sun | `23 18 * * 0` | In order: universe scraper → bhavcopy gate → per-company crawler (≈2.5–3h, `timeout-minutes: 330`). Uploads all data as an artifact, even on a partial run. |
+
+The cron is deliberately off the `:00/:15/:30/:45` marks (GitHub queues those) and
+the daily one runs *after* the prior session's NSE bhavcopy is final. Both also
+support manual `workflow_dispatch`. The per-stage manual workflows
+(`universe-scraper`, `bhavcopy-liquidity`, `company-metrics`) remain for ad-hoc /
+debug runs (batching, HTML dumps, thresholds).
+
+### Secrets
+
+| Secret | Daily | Weekly | Purpose |
+| --- | :-: | :-: | --- |
+| `SCREENER_EMAIL` / `SCREENER_PASSWORD` | optional | required | Screener login — weekly crawl; daily only for the new-entrant nicety |
+| `FIRECRAWL_API_KEY` | optional | optional | Fallback fetch if NSE blocks the runner |
+
+Requires repo **Workflow permissions → Read and write** (Settings → Actions →
+General) so the bot can commit.
+
+### Metrics-pending
+
+A daily run can add a name to `liquid-universe.json` before the weekly crawl has
+its fundamentals. The dashboard shows such names with a **"Pending"** signal in
+the grid and a **"Metrics pending"** dossier until the next crawl fills them in.
+
+> `daksham-evaluated.json` is an optional batch snapshot (`npm run evaluate`) — the
+> dashboard computes verdicts client-side and does not require it, so CI doesn't
+> refresh it.

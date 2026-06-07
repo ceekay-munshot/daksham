@@ -247,6 +247,13 @@ table.master tbody tr:last-child td { border-bottom: none; }
 .trend-btn:hover .trend-ic { color: var(--brand); }
 .trend-ic i { width: 13px; height: 13px; }
 
+/* metrics-pending dossier */
+.pending-card { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 12px; background: #fff; border: 1px dashed #d9deea; border-radius: 16px; padding: 38px 28px; box-shadow: var(--shadow); }
+.pending-ic { display: grid; place-items: center; width: 54px; height: 54px; border-radius: 16px; background: linear-gradient(135deg, #fde68a, #f59e0b); color: #7c2d12; box-shadow: 0 12px 24px -10px rgba(245, 158, 11, 0.6); }
+.pending-ic i { width: 26px; height: 26px; }
+.pending-title { font-family: 'Sora', sans-serif; font-weight: 700; font-size: 17px; color: var(--ink); }
+.pending-card p { font-size: 13px; color: var(--muted); line-height: 1.55; max-width: 410px; }
+
 /* ── Chart modal ────────────────────────────────────────────────────────── */
 .chart-modal {
   width: min(680px, 96vw); max-height: calc(100vh - 48px); overflow-y: auto; background: #fff; border-radius: 20px; box-shadow: var(--modal-shadow);

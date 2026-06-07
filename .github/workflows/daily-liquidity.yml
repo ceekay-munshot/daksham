@@ -1,0 +1,86 @@
+name: Daily liquidity refresh
+
+# Fast tier — refreshes the ₹4 Cr / 30-day liquidity gate from NSE bhavcopy.
+# Scheduled for early IST morning on trading days, after the prior session's
+# bhavcopy is final, and off the :00/:15/:30/:45 marks (GitHub queues those).
+# Eval stays client-side, so there is no eval step — this only refreshes data.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 1 * * 2-6" # 01:17 UTC ≈ 06:47 IST, Tue–Sat (covers Mon–Fri sessions)
+
+permissions:
+  contents: write
+
+concurrency:
+  group: daily-liquidity
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SCREENER_EMAIL: ${{ secrets.SCREENER_EMAIL }}
+      SCREENER_PASSWORD: ${{ secrets.SCREENER_PASSWORD }}
+      FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1" # bhavcopy uses fetch(), no browser
+        run: npm ci
+
+      # Bhavcopy CSVs are immutable once published — cache so each run only fetches new days.
+      - name: Cache bhavcopy CSVs
+        uses: actions/cache@v4
+        with:
+          path: .cache/bhav
+          key: bhav-${{ github.run_id }}
+          restore-keys: |
+            bhav-
+
+      - name: Bhavcopy volume gate
+        run: node scrapers/bhavcopy-liquidity.mjs
+
+      # Optional nicety: crawl just the handful of new entrants so they aren't
+      # metric-less. Best-effort, only when Screener creds exist; any still-missing
+      # entrant is shown as "metrics pending" in the UI until the weekly crawl.
+      - name: Crawl new liquid entrants (best-effort)
+        if: ${{ env.SCREENER_EMAIL != '' }}
+        continue-on-error: true
+        run: |
+          npx playwright install --with-deps chromium
+          ONLY_NEW=1 node scrapers/company-metrics.mjs
+
+      - name: Commit refreshed data
+        if: ${{ github.ref_name == github.event.repository.default_branch }}
+        run: |
+          set -e
+          BR="${{ github.event.repository.default_branch }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/data/liquid-universe.json public/data/liquidity-debug.json \
+                  public/data/daksham-companies.json public/data/daksham-companies.csv \
+                  public/data/companies-metadata.json
+          if git diff --cached --quiet; then
+            echo "No liquidity changes — nothing to commit."
+            exit 0
+          fi
+          git commit -m "Daily liquidity refresh ($(date -u +%F))"
+          for i in 1 2 3 4; do
+            if git push origin "HEAD:$BR"; then echo "pushed"; exit 0; fi
+            echo "push attempt $i failed — fetching + rebasing, then retrying"
+            git fetch origin "$BR"
+            git rebase "origin/$BR"
+            sleep $((2 ** i))
+          done
+          echo "push failed after 4 attempts"; exit 1

@@ -26,7 +26,11 @@ export function headHtml(sort) {
   }).join('')}</tr>`;
 }
 
-function signalsCell(params) {
+function signalsCell(rec) {
+  if (rec.pending) {
+    return `<span class="pill pill-pending" title="Newly liquid — full metrics refresh on the next weekly crawl">Pending</span>`;
+  }
+  const params = rec.params;
   let pass = 0;
   let applicable = 0;
   const dots = CHECK_KEYS.map((k) => {
@@ -64,7 +68,7 @@ function rowHtml(rec, i) {
     <td class="cell-num">${n(rec.pb, mult)}</td>
     <td class="cell-num">${n(rec.evEbitda, mult)}</td>
     <td class="cell-num hide-sm">${n(rec.mcapSales, mult)}</td>
-    <td class="num">${signalsCell(rec.params)}</td>
+    <td class="num">${signalsCell(rec)}</td>
   </tr>`;
 }
 

@@ -48,6 +48,7 @@ function readConfig() {
     password: SCREENER_PASSWORD,
     startAt,
     maxCompanies,
+    onlyNew: truthy(process.env.ONLY_NEW), // crawl only liquid names not yet in companies.json
     debug: truthy(process.env.DEBUG_DUMP_HTML),
   };
 }
@@ -165,24 +166,40 @@ async function main() {
 
   console.log('Per-company metrics crawler');
   console.log(`  liquid_in : ${liquid.length}`);
-  console.log(`  range     : [${cfg.startAt}..${cfg.startAt + Math.min(cfg.maxCompanies, liquid.length - cfg.startAt)})`);
 
-  // Results keyed by path so a resume run replaces rather than duplicates.
+  // Results keyed by path so a resume / only-new run replaces rather than duplicates.
   const byPath = new Map();
-  if (cfg.startAt > 0) {
+  const seed = () => {
     for (const r of loadExisting()) if (r && r.path) byPath.set(r.path, r);
-    if (byPath.size) console.log(`  resume    : loaded ${byPath.size} companies from previous run`);
-  }
-  const failures = [];
+  };
 
+  // Decide which companies to crawl this run.
+  let toProcess;
+  if (cfg.onlyNew) {
+    seed(); // keep everything already crawled
+    toProcess = liquid.filter((r) => r.path && !byPath.has(r.path));
+    if (cfg.maxCompanies !== Infinity) toProcess = toProcess.slice(0, cfg.maxCompanies);
+    console.log(`  mode      : only-new — ${toProcess.length} new liquid entrant(s) to crawl`);
+  } else {
+    if (cfg.startAt > 0) seed();
+    toProcess = liquid.slice(cfg.startAt, cfg.startAt + cfg.maxCompanies);
+    console.log(`  range     : [${cfg.startAt}..${cfg.startAt + toProcess.length})`);
+  }
+  if (byPath.size) console.log(`  seeded    : ${byPath.size} companies from a previous run`);
+
+  if (!toProcess.length) {
+    console.log('Nothing to crawl — companies.json already covers the liquid set.');
+    return;
+  }
+
+  const failures = [];
   const { browser, page } = await launchLoggedIn(cfg.email, cfg.password);
   try {
     console.log('  login     : ok');
 
-    const slice = liquid.slice(cfg.startAt, cfg.startAt + cfg.maxCompanies);
-    for (let i = 0; i < slice.length; i++) {
-      const row = slice[i];
-      const idx = cfg.startAt + i;
+    for (let i = 0; i < toProcess.length; i++) {
+      const row = toProcess[i];
+      const idx = cfg.onlyNew ? i : cfg.startAt + i;
       const slug = String(row.slug || '').trim();
       if (!slug) {
         failures.push({ slug: '', error: 'missing slug' });

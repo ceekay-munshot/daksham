@@ -34,14 +34,16 @@ const state = {
 async function load() {
   skeleton();
   let companies;
+  let liquid = null;
   let companiesMeta = {};
   let universeMeta = {};
   try {
-    [companies, companiesMeta, universeMeta] = await Promise.all([
+    [companies, liquid, companiesMeta, universeMeta] = await Promise.all([
       fetch('data/daksham-companies.json').then((r) => {
         if (!r.ok) throw new Error('companies');
         return r.json();
       }),
+      fetch('data/liquid-universe.json').then((r) => (r.ok ? r.json() : null)).catch(() => null),
       fetch('data/companies-metadata.json').then((r) => r.json()).catch(() => ({})),
       fetch('data/universe-metadata.json').then((r) => r.json()).catch(() => ({})),
     ]);
@@ -49,11 +51,19 @@ async function load() {
     return errorState();
   }
 
-  state.records = companies.map(enrich);
+  // The current liquid set is the spine; join per-company metrics where crawled,
+  // and mark not-yet-crawled entrants as "metrics pending".
+  const byPath = new Map(companies.map((c) => [c.path, c]));
+  const spine = Array.isArray(liquid) && liquid.length ? liquid : companies;
+  state.records = spine.map((row) => {
+    const full = byPath.get(row.path);
+    return full ? enrich(full) : enrichPending(row);
+  });
   state.bySlug = new Map(state.records.map((r) => [r.slug, r]));
-  if (state.records[0]) for (const k of CHECK_KEYS) state.labels[k] = state.records[0].params[k].label;
+  const sample = state.records.find((r) => !r.pending);
+  if (sample) for (const k of CHECK_KEYS) state.labels[k] = sample.params[k].label;
 
-  hydrateHero(companies.length, companiesMeta, universeMeta);
+  hydrateHero(state.records.length, companiesMeta, universeMeta);
   renderKpis();
   buildControls();
   wire();
@@ -87,6 +97,30 @@ function enrich(row) {
     mcapSales: N(row.mcap_to_sales),
     passCount,
     applicable,
+    pending: false,
+  };
+}
+
+// A liquid name not yet present in daksham-companies.json — show what the
+// universe/liquidity files already have; full metrics + verdicts come on the
+// next crawl.
+function enrichPending(row) {
+  return {
+    row,
+    params: null,
+    pending: true,
+    name: row.name || row.slug || '—',
+    slug: row.slug || '',
+    sector: row.broad_sector || '',
+    industry: row.industry || '',
+    mcap: N(row.market_cap ?? row.mkt_cap),
+    pe: N(row.stock_pe ?? row.pe),
+    pb: N(row.pb),
+    evEbitda: N(row.ev_ebitda),
+    mcapSales: N(row.mcap_to_sales),
+    adtv: N(row.adtv_30d_cr),
+    passCount: null,
+    applicable: 0,
   };
 }
 
@@ -102,9 +136,10 @@ function hydrateHero(liquidCount, cMeta, uMeta) {
 
 function renderKpis() {
   const recs = state.records;
+  const complete = recs.filter((r) => !r.pending);
   const sectors = new Set(recs.map((r) => r.sector).filter(Boolean)).size;
-  const strong = recs.filter((r) => r.passCount >= 5).length;
-  const avg = recs.length ? (recs.reduce((s, r) => s + r.passCount, 0) / recs.length).toFixed(1) : '0';
+  const strong = complete.filter((r) => r.passCount >= 5).length;
+  const avg = complete.length ? (complete.reduce((s, r) => s + r.passCount, 0) / complete.length).toFixed(1) : '0';
 
   const cards = [
     { icon: 'building-2', num: groupIN(recs.length), label: 'Liquid companies', grad: 'linear-gradient(135deg,#6366f1,#4f46e5)', shadow: 'rgba(79,70,229,.45)' },
@@ -202,8 +237,8 @@ function resetFilters() {
 function matches(rec, f) {
   if (f.search && !(rec.name.toLowerCase().includes(f.search) || rec.slug.toLowerCase().includes(f.search))) return false;
   if (f.sector && rec.sector !== f.sector) return false;
-  if (f.check && rec.params[f.check].verdict !== 'PASS') return false;
-  if (f.minSignals && rec.passCount < f.minSignals) return false;
+  if (f.check && (!rec.params || rec.params[f.check].verdict !== 'PASS')) return false;
+  if (f.minSignals && (rec.passCount == null || rec.passCount < f.minSignals)) return false;
   if (f.mcap) {
     const [lo, hi] = f.mcap.split('-').map(Number);
     if (rec.mcap == null || rec.mcap < lo || rec.mcap >= hi) return false;
