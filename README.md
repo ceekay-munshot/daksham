@@ -96,3 +96,49 @@ node scrapers/bhavcopy-liquidity.mjs
 (`npm run scrape:liquidity` runs the same command. NSE blocks many datacenter
 IPs — if you get 0 valid days locally, run it via the **Bhavcopy volume gate**
 GitHub Action, or set `FIRECRAWL_API_KEY`.)
+
+## Per-company metrics crawler
+
+`scrapers/company-metrics.mjs` reads `liquid-universe.json` (the volume-pass
+names) and, for each, opens `https://www.screener.in/company/<slug>/` in
+Screener's **default view** (consolidated when available, else standalone —
+recorded under `financials_view`). It expands the Expenses / Other Assets
+schedules and extracts the raw fundamentals + multi-period series Daksham needs.
+It runs ONLY on the liquid set, not the full universe. Pure extraction — no
+PASS/FAIL or scoring (that's a later evaluation layer).
+
+Per company it captures: the ribbon (`stock_pe, roce, roe, book_value,
+current_price, market_cap`, computed `pb`), sector tags, `sales_cagr_3y` (+5Y/TTM),
+and oldest→newest pipe-delimited series — quarterly sales + material-cost %,
+annual revenue / OPM % / material-cost % (TTM dropped), CFO, net block,
+inventories, and promoter/FII/DII holding — plus latest holdings,
+`institutional_holding`, and `mcap_to_sales`.
+
+### Outputs
+
+| File | Contents |
+| --- | --- |
+| `public/data/daksham-companies.json` | Array; each = the `liquid-universe` row + every extracted field |
+| `public/data/daksham-companies.csv` | Flat; series stay pipe-delimited |
+| `public/data/companies-metadata.json` | `{ generated_at, financials_view_counts, company_count, failures }` |
+
+Flushed after every company, so a crash is resumable.
+
+### Environment / secrets
+
+Same `SCREENER_EMAIL` / `SCREENER_PASSWORD` as the universe scraper, plus:
+
+| Variable | Required | Default | Purpose |
+| --- | :---: | --- | --- |
+| `START_AT` | — | `0` | Resume offset (index into `liquid-universe.json`) |
+| `MAX_COMPANIES` | — | _(all)_ | Cap per run — set `3`–`5` for a smoke test, or batch a full run |
+
+### Run locally
+
+```bash
+SCREENER_EMAIL=you@example.com SCREENER_PASSWORD=secret MAX_COMPANIES=3 node scrapers/company-metrics.mjs
+```
+
+(`npm run scrape:companies` runs the same command. A full ~947 run takes a couple
+of hours — smoke-test first, then run the rest, optionally in batches via
+`START_AT` + `MAX_COMPANIES`.)

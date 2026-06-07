@@ -10,22 +10,15 @@
 //
 //   SCREENER_EMAIL=... SCREENER_PASSWORD=... node scrapers/screener-universe.mjs
 
-import { chromium } from 'playwright';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { parseScreenTable, dedupeByPath, inspectTable } from './lib/parse.mjs';
 import { writeUniverse, loadExistingUniverse, dumpPageHtml } from './lib/output.mjs';
+import { launchLoggedIn, gotoWithRetry, sleep } from './lib/screener.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const OUT_DIR = path.resolve(__dirname, '..', 'public', 'data');
-
-const LOGIN_URL = 'https://www.screener.in/login/';
-const DESKTOP_UA =
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
-  '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
-
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const truthy = (v) => ['1', 'true', 'yes', 'on'].includes(String(v || '').toLowerCase());
 
 function readConfig() {
@@ -61,46 +54,6 @@ function readConfig() {
   };
 }
 
-async function login(page, email, password) {
-  await page.goto(LOGIN_URL, { waitUntil: 'domcontentloaded' });
-  await page.fill('input[name="username"]', email);
-  await page.fill('input[name="password"]', password);
-
-  const submit = page.locator('button[type="submit"]');
-  if (await submit.count()) await submit.first().click();
-  else await page.press('input[name="password"]', 'Enter');
-
-  await page.waitForLoadState('networkidle', { timeout: 30000 }).catch(() => {});
-
-  const html = await page.content();
-  if (!html.includes('/logout/')) {
-    throw new Error(
-      'Screener login failed: no /logout/ link found after submitting credentials. ' +
-        'Double-check SCREENER_EMAIL / SCREENER_PASSWORD.'
-    );
-  }
-}
-
-// Fetch a screen page and return its HTML, or null if the results table never
-// appears after several attempts. Retrying guards against a transient load
-// failure being mistaken for the end of the screen, which would silently
-// truncate the universe.
-async function fetchPageHtml(page, url, isFirst, attempts = 3) {
-  for (let attempt = 1; attempt <= attempts; attempt++) {
-    await page.goto(url, { waitUntil: 'domcontentloaded' });
-    try {
-      await page.waitForSelector('table.data-table', { timeout: isFirst ? 20000 : 12000 });
-      return await page.content();
-    } catch {
-      if (attempt < attempts) {
-        console.warn(`  retry  : no data-table on attempt ${attempt}/${attempts} for ${url}`);
-        await sleep(1000 * attempt);
-      }
-    }
-  }
-  return null;
-}
-
 async function main() {
   const cfg = readConfig();
   console.log('Screener universe scraper');
@@ -121,18 +74,17 @@ async function main() {
     if (all.length) console.log(`  resume : loaded ${all.length} companies from previous run`);
   }
 
-  const browser = await chromium.launch({ headless: true });
+  const { browser, page } = await launchLoggedIn(cfg.email, cfg.password);
   try {
-    const context = await browser.newContext({ userAgent: DESKTOP_UA });
-    const page = await context.newPage();
-
-    await login(page, cfg.email, cfg.password);
     console.log('  login  : ok');
 
     let totalPages = null;
     for (let p = cfg.startPage; p <= cfg.maxPages; p++) {
       const url = `${cfg.base}/?page=${p}`;
-      const html = await fetchPageHtml(page, url, p === cfg.startPage);
+      const html = await gotoWithRetry(page, url, {
+        waitFor: 'table.data-table',
+        isFirst: p === cfg.startPage,
+      });
 
       if (html === null) {
         if (p === 1) {
