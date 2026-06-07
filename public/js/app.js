@@ -4,7 +4,8 @@
 import { evaluate, CHECK_KEYS } from './evaluate.mjs';
 import { esc } from './format.js';
 import * as grid from './grid.js';
-import { initDossier, openDossier } from './dossier.js';
+import { initDossier, openDossier, closeDossier, isDossierOpen } from './dossier.js';
+import { isChartOpen, closeChart } from './chart.js';
 
 const N = (x) => {
   const v = Number(x);
@@ -160,6 +161,13 @@ function wire() {
     apply();
   });
   $('clear-filters').addEventListener('click', resetFilters);
+
+  // Esc closes the chart first (if open), then the dossier.
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (isChartOpen()) closeChart();
+    else if (isDossierOpen()) closeDossier();
+  });
 
   // delegated: sort on header click
   $('master-head').addEventListener('click', (e) => {
