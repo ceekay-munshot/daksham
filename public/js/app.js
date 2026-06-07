@@ -1,7 +1,7 @@
 // Daksham dashboard orchestrator. Loads the data, computes verdicts CLIENT-SIDE
 // via the shared eval module, and drives the KPIs / controls / grid / dossier.
 
-import { evaluate, CHECK_KEYS } from '../../eval/evaluate.mjs';
+import { evaluate, CHECK_KEYS } from './evaluate.mjs';
 import { esc } from './format.js';
 import * as grid from './grid.js';
 import { initDossier, openDossier } from './dossier.js';

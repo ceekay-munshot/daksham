@@ -1,6 +1,6 @@
 // Per-company dossier — a polished slide-over tear sheet.
 
-import { CHECK_KEYS } from '../../eval/evaluate.mjs';
+import { CHECK_KEYS } from './evaluate.mjs';
 import { esc, inrCr, price, mult, fmtMetric, pill } from './format.js';
 import { sectorChip } from './sectors.js';
 import { sparkline } from './sparkline.js';

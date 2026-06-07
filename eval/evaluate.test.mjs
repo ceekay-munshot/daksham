@@ -1,7 +1,16 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 
 import { evaluate, parseSeries } from './evaluate.mjs';
+
+// The dashboard is served from public/, so it imports a vendored copy of this
+// module. Guard against drift — run `npm run sync:eval` after editing the source.
+test('vendored public/js/evaluate.mjs is in sync with eval/evaluate.mjs', () => {
+  const src = readFileSync('eval/evaluate.mjs', 'utf8');
+  const vendored = readFileSync('public/js/evaluate.mjs', 'utf8');
+  assert.equal(vendored, src, 'public/js/evaluate.mjs is stale — run: npm run sync:eval');
+});
 
 // Evaluate a partial row and return its params map. Unset fields just become NA.
 const P = (row) => evaluate(row).params;

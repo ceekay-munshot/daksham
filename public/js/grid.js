@@ -1,7 +1,7 @@
 // Master grid: sortable header, company rows with sector chip, valuation cluster,
 // and a compact "green signals" visual.
 
-import { CHECK_KEYS } from '../../eval/evaluate.mjs';
+import { CHECK_KEYS } from './evaluate.mjs';
 import { esc, inrCr, mult } from './format.js';
 import { sectorChip } from './sectors.js';
 
