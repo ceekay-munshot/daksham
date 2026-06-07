@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-import { evaluate, parseSeries } from './evaluate.mjs';
+import { evaluate, parseSeries, computeIndustryMedians } from './evaluate.mjs';
 
 // The dashboard is served from public/, so it imports a vendored copy of this
 // module. Guard against drift — run `npm run sync:eval` after editing the source.
@@ -80,6 +80,54 @@ test('sales_fa_below_0_8x', () => {
   // sfa 5,5,5 → latest 5 not < 4 → FAIL
   assert.equal(verdict({ revenue_series: '100|100|100', net_block_series: '20|20|20' }, K), 'FAIL');
   assert.ok(note({ revenue_series: '100|100', net_block_series: '20|20' }, K).startsWith('Insufficient history'));
+});
+
+// ── sales_fa_vs_peers (peer engine, R27) ────────────────────────────────────
+const sfaCo = (slug, industry, rev, nb) => ({
+  slug,
+  industry,
+  revenue_series: String(rev),
+  net_block_series: String(nb),
+});
+const PEER_UNIVERSE = [
+  sfaCo('A', 'Widgets', 200, 100), // sfa 2
+  sfaCo('B', 'Widgets', 300, 100), // 3
+  sfaCo('C', 'Widgets', 400, 100), // 4
+  sfaCo('D', 'Widgets', 500, 100), // 5
+  sfaCo('E', 'Widgets', 600, 100), // 6 → Widgets median 4, count 5
+  sfaCo('N1', 'Niche', 100, 50), // 2
+  sfaCo('N2', 'Niche', 200, 50), // 4
+  sfaCo('N3', 'Niche', 300, 50), // 6 → Niche count 3 (< 5)
+  { slug: 'M', industry: 'Widgets', revenue_series: '400', net_block_series: '' }, // no FA → skipped
+];
+
+test('computeIndustryMedians: per-industry median SFA + peer count', () => {
+  const m = computeIndustryMedians(PEER_UNIVERSE);
+  assert.deepEqual(m.Widgets, { median_sfa: 4, count: 5 }); // M skipped (no fixed assets)
+  assert.deepEqual(m.Niche, { median_sfa: 4, count: 3 });
+});
+
+test('sales_fa_vs_peers: PASS / FAIL / too-few-peers NA / missing NA', () => {
+  const K = 'sales_fa_vs_peers';
+  const m = computeIndustryMedians(PEER_UNIVERSE);
+  const v = (row) => evaluate(row, m).params[K];
+
+  assert.equal(v(PEER_UNIVERSE[0]).verdict, 'PASS'); // A: 2 < 0.9 × 4 (=3.6)
+  assert.equal(v(PEER_UNIVERSE[4]).verdict, 'FAIL'); // E: 6 not < 3.6
+  assert.equal(v(PEER_UNIVERSE[0]).output_type, 'pass_fail'); // live, not deferred
+
+  const few = v(PEER_UNIVERSE[5]); // Niche has 3 peers (< 5)
+  assert.equal(few.verdict, 'NA');
+  assert.ok(few.note.includes('too few industry peers'));
+
+  const miss = v(PEER_UNIVERSE[8]); // M: no fixed assets
+  assert.equal(miss.verdict, 'NA');
+  assert.ok(miss.note.startsWith('Insufficient history'));
+});
+
+test('sales_fa_vs_peers is no longer a deferred stub', () => {
+  const { params } = evaluate(PEER_UNIVERSE[0], computeIndustryMedians(PEER_UNIVERSE));
+  assert.notEqual(params.sales_fa_vs_peers.output_type, 'deferred');
 });
 
 // ── promoter_trend_up (stable or rising; only a real decline fails) ─────────

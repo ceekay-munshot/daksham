@@ -49,6 +49,7 @@ const SECTIONS = [
     rows: [
       { key: 'cfo_rising_3y', icon: 'wallet', series: 'cfo_series', unit: '₹ Cr', src: 'cash-flow', chart: 'Operating Cash Flow' },
       { key: 'sales_fa_below_0_8x', icon: 'factory' },
+      { key: 'sales_fa_vs_peers', icon: 'bar-chart-3' },
     ],
   },
   {

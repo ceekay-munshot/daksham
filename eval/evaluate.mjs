@@ -42,6 +42,10 @@ export const CONFIG = {
     lagQuarters: 4,
     minDelta: 1.0, // PASS if (fii+dii) latest - value_4q_ago > minDelta (pp)
   },
+  salesFaVsPeers: {
+    ratio: 0.9, // PASS if company Sales/FA < ratio × the industry median
+    minPeers: 5, // need at least this many industry peers with an SFA for a reliable median
+  },
 };
 
 // The pass/fail checks, for the batch summary.
@@ -51,6 +55,7 @@ export const CHECK_KEYS = [
   'cfo_rising_3y',
   'ebitda_gt_110_sales',
   'sales_fa_below_0_8x',
+  'sales_fa_vs_peers',
   'promoter_trend_up',
   'inst_trend_up',
 ];
@@ -326,10 +331,69 @@ function instTrendUp(row) {
   );
 }
 
+// ─────────────────────── peer engine (rule R27) ────────────────────────────
+
+function median(arr) {
+  const s = [...arr].sort((a, b) => a - b);
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+}
+
+// A company's asset turnover: latest Sales / latest Fixed Assets (Net Block).
+// Returns null when either is missing or fixed assets are non-positive.
+function latestSfa(row) {
+  const rev = parseSeries(row.revenue_series);
+  const nb = parseSeries(row.net_block_series);
+  if (!rev.length || !nb.length) return null;
+  const fa = nb[nb.length - 1];
+  if (!(fa > 0)) return null;
+  const sfa = rev[rev.length - 1] / fa;
+  return Number.isFinite(sfa) ? sfa : null;
+}
+
+// Group companies by `industry`, compute each one's Sales/Fixed-Assets, and per
+// industry return the median SFA + peer count. Compute once, pass into evaluate().
+export function computeIndustryMedians(companies) {
+  const groups = {};
+  for (const c of companies || []) {
+    const ind = String(c.industry || '').trim();
+    if (!ind) continue;
+    const sfa = latestSfa(c);
+    if (sfa == null) continue;
+    (groups[ind] ||= []).push(sfa);
+  }
+  const out = {};
+  for (const [ind, arr] of Object.entries(groups)) {
+    out[ind] = { median_sfa: median(arr), count: arr.length };
+  }
+  return out;
+}
+
+// R27: low asset turnover vs peers = under-utilised capacity / operating-leverage
+// headroom. PASS if the company's Sales/FA is below `ratio` × the industry median.
+function salesFaVsPeers(row, medians) {
+  const key = 'sales_fa_vs_peers';
+  const label = 'Sales/FA below industry peers';
+  const c = CONFIG.salesFaVsPeers;
+  const sfa = latestSfa(row);
+  if (sfa == null) return naData(key, label, 'company Sales/FA unavailable');
+  const peer = medians && medians[String(row.industry || '').trim()];
+  if (!peer || peer.count < c.minPeers) {
+    return naData(key, label, `too few industry peers for a reliable median (need ≥${c.minPeers})`);
+  }
+  const pass = sfa < c.ratio * peer.median_sfa;
+  return passFail(
+    key,
+    label,
+    `${sfa.toFixed(2)} vs peer median ${peer.median_sfa.toFixed(2)}`,
+    pass,
+    `pass if < ${c.ratio}× industry median (${peer.count} peers)`
+  );
+}
+
 // ─────────────────────────── deferred stubs ────────────────────────────────
 
 const DEFERRED = [
-  ['sales_fa_vs_peers', 'Sales/FA vs Peers', 'Deferred — needs peer engine'],
   ['capital_allocation', 'Capital Allocation', 'Deferred — needs capital-employed + cost-of-capital'],
   ['revenue_guidance', 'Revenue Guidance', 'Deferred — qualitative / management commentary'],
   ['margin_guidance', 'Margin Guidance', 'Deferred — qualitative / management commentary'],
@@ -361,7 +425,7 @@ const CHECKS = [
   instTrendUp,
 ];
 
-export function evaluate(row) {
+export function evaluate(row, industryMedians = {}) {
   const params = {};
   const put = (v) => {
     params[v.key] = v;
@@ -369,6 +433,7 @@ export function evaluate(row) {
 
   for (const v of rawFields(row)) put(v);
   for (const check of CHECKS) put(check(row));
+  put(salesFaVsPeers(row, industryMedians));
   for (const [key, label, note] of DEFERRED) put(deferred(key, label, note));
 
   return {

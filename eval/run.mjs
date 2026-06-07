@@ -9,7 +9,7 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { evaluate, CHECK_KEYS } from './evaluate.mjs';
+import { evaluate, computeIndustryMedians, CHECK_KEYS } from './evaluate.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const OUT_DIR = path.resolve(__dirname, '..', 'public', 'data');
@@ -22,7 +22,8 @@ function main() {
     throw new Error(`No companies in ${IN_PATH}. Run the per-company crawler first.`);
   }
 
-  const evaluated = companies.map(evaluate);
+  const medians = computeIndustryMedians(companies);
+  const evaluated = companies.map((c) => evaluate(c, medians));
   mkdirSync(OUT_DIR, { recursive: true });
   // Minified: this is a generated, dashboard-consumed file (~947 × 38 params,
   // incl. 18 deferred stubs) — keep the payload and git footprint down.

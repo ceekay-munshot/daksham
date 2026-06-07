@@ -1,7 +1,7 @@
 // Daksham dashboard orchestrator. Loads the data, computes verdicts CLIENT-SIDE
 // via the shared eval module, and drives the KPIs / controls / grid / dossier.
 
-import { evaluate, CHECK_KEYS } from './evaluate.mjs';
+import { evaluate, computeIndustryMedians, CHECK_KEYS } from './evaluate.mjs';
 import { esc } from './format.js';
 import * as grid from './grid.js';
 import { initDossier, openDossier, closeDossier, isDossierOpen } from './dossier.js';
@@ -51,6 +51,10 @@ async function load() {
     return errorState();
   }
 
+  // Industry SFA medians for the peer check — computed once over the full
+  // crawled set, then passed into every evaluate().
+  state.medians = computeIndustryMedians(companies);
+
   // The current liquid set is the spine; join per-company metrics where crawled,
   // and mark not-yet-crawled entrants as "metrics pending".
   const byPath = new Map(companies.map((c) => [c.path, c]));
@@ -73,7 +77,7 @@ async function load() {
 }
 
 function enrich(row) {
-  const { params } = evaluate(row);
+  const { params } = evaluate(row, state.medians);
   let passCount = 0;
   let applicable = 0;
   for (const k of CHECK_KEYS) {
@@ -145,7 +149,7 @@ function renderKpis() {
     { icon: 'building-2', num: groupIN(recs.length), label: 'Liquid companies', grad: 'linear-gradient(135deg,#6366f1,#4f46e5)', shadow: 'rgba(79,70,229,.45)' },
     { icon: 'layout-grid', num: sectors, label: 'Sectors covered', grad: 'linear-gradient(135deg,#a855f7,#7c3aed)', shadow: 'rgba(124,58,237,.45)' },
     { icon: 'award', num: groupIN(strong), label: 'Strong picks · ≥5 signals', grad: 'linear-gradient(135deg,#34d399,#10b981)', shadow: 'rgba(16,185,129,.45)' },
-    { icon: 'activity', num: avg, label: 'Avg green signals · of 7', grad: 'linear-gradient(135deg,#fbbf24,#f59e0b)', shadow: 'rgba(245,158,11,.45)' },
+    { icon: 'activity', num: avg, label: `Avg green signals · of ${CHECK_KEYS.length}`, grad: 'linear-gradient(135deg,#fbbf24,#f59e0b)', shadow: 'rgba(245,158,11,.45)' },
   ];
   $('kpis').innerHTML = cards
     .map(
