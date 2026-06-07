@@ -13,7 +13,18 @@ export const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // Fill the login form, submit, and verify a /logout/ link is present.
 export async function login(page, email, password) {
-  await page.goto(LOGIN_URL, { waitUntil: 'domcontentloaded' });
+  // Screener's first paint can be slow / flaky on CI runners — retry the nav.
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      await page.goto(LOGIN_URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
+      break;
+    } catch (err) {
+      if (attempt >= 3) throw new Error(`Could not reach Screener login after 3 attempts: ${err.message}`);
+      console.warn(`  login  : navigation attempt ${attempt} failed (${err.message}); retrying…`);
+      await sleep(2000 * attempt);
+    }
+  }
+
   await page.fill('input[name="username"]', email);
   await page.fill('input[name="password"]', password);
 
@@ -37,6 +48,7 @@ export async function launchLoggedIn(email, password) {
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({ userAgent: DESKTOP_UA });
   const page = await context.newPage();
+  page.setDefaultNavigationTimeout(60000); // tolerate slow Screener responses
   await login(page, email, password);
   return { browser, context, page };
 }
