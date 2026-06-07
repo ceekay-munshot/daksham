@@ -250,6 +250,29 @@ export function parseCompanyPage(html, { url } = {}) {
   };
 }
 
+// Structural diagnostics for debugging against the live DOM: the ribbon labels,
+// the sector tags, and every section's period count + row labels (post-expansion,
+// so the Material Cost % / Inventories sub-rows should show if the click worked).
+export function inspectCompany(html) {
+  const $ = cheerio.load(html);
+  $('script, style, noscript').remove();
+
+  const lines = [];
+  lines.push(
+    `    ribbon: ${$('#top-ratios li .name').map((_, e) => collapse($(e).text())).get().join(', ')}`
+  );
+  lines.push(
+    `    sectors: ${[sectorTag($, 'Broad Sector'), sectorTag($, 'Sector'), sectorTag($, 'Industry')].join(' / ')}`
+  );
+  for (const sec of ['#quarters', '#profit-loss', '#cash-flow', '#balance-sheet', '#shareholding']) {
+    const p = parseSectionTable($, sec);
+    lines.push(
+      `    ${sec}: ${p ? `${p.periods.length}p | ${p.rows.map((r) => r.label).join(' / ')}` : '(none)'}`
+    );
+  }
+  return lines.join('\n');
+}
+
 // Flat CSV from an array of row objects (union of all keys, first-seen order).
 // Series stay as pipe-delimited strings.
 export function toCsv(rows) {

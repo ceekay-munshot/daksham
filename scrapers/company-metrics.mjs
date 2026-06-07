@@ -15,7 +15,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { launchLoggedIn, gotoWithRetry, sleep } from './lib/screener.mjs';
-import { parseCompanyPage, toCsv } from './lib/company.mjs';
+import { parseCompanyPage, toCsv, inspectCompany } from './lib/company.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const OUT_DIR = path.resolve(__dirname, '..', 'public', 'data');
@@ -187,7 +187,10 @@ async function main() {
           parsed = html ? parseCompanyPage(html, { url }) : null;
         }
 
-        if (cfg.debug && html) dumpCompanyHtml(slug, html);
+        if (cfg.debug && html) {
+          dumpCompanyHtml(slug, html);
+          console.log(`  inspect [${slug}]:\n${inspectCompany(html)}`);
+        }
 
         if (!looksComplete(parsed)) {
           failures.push({ slug, error: 'ribbon/sections did not render' });
