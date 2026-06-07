@@ -8,7 +8,8 @@
     "scrape:universe": "node scrapers/screener-universe.mjs",
     "scrape:liquidity": "node scrapers/bhavcopy-liquidity.mjs",
     "scrape:companies": "node scrapers/company-metrics.mjs",
-    "test": "node --test \"scrapers/**/*.test.mjs\""
+    "evaluate": "node eval/run.mjs",
+    "test": "node --test \"scrapers/**/*.test.mjs\" \"eval/**/*.test.mjs\""
   },
   "engines": {
     "node": ">=18"

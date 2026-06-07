@@ -142,3 +142,35 @@ SCREENER_EMAIL=you@example.com SCREENER_PASSWORD=secret MAX_COMPANIES=3 node scr
 (`npm run scrape:companies` runs the same command. A full ~947 run takes a couple
 of hours — smoke-test first, then run the rest, optionally in batches via
 `START_AT` + `MAX_COMPANIES`.)
+
+## Evaluation layer
+
+`eval/evaluate.mjs` is **pure ESM (browser + Node, no DOM deps)**. `evaluate(companyRow)`
+turns a `daksham-companies.json` row into a verdict per parameter:
+
+```js
+{ key, label, value, verdict, output_type, note }
+// output_type ∈ "raw" | "pass_fail" | "deferred"
+// verdict     → "PASS" | "FAIL" | "NA" (pass_fail); null (raw / deferred)
+```
+
+Two NA flavours keep "structurally absent" apart from "data missing" — and a
+company is **never failed for a line its sector lacks**:
+
+- `naSector` → `note: "Not applicable — …"` (e.g. a bank/IT firm has no material-cost line)
+- `naData` → `note: "Insufficient history — …"` (series missing or too short)
+
+Every tunable (the 0.8× turnover factor, +0.5 / +1.0 holding deltas, the 1.10
+EBITDA ratio, the trend definitions) lives in the `CONFIG` block at the top of
+`evaluate.mjs`. The dashboard can import `evaluate.mjs` and compute verdicts
+client-side from `daksham-companies.json`, or read the pre-computed file below.
+
+### Batch
+
+```bash
+node eval/run.mjs            # or: npm run evaluate
+```
+
+Reads `daksham-companies.json`, writes `public/data/daksham-evaluated.json`
+(array of `{ company, params }`, minified), and prints a per-check summary
+(PASS / FAIL / NA-sector / NA-data).
