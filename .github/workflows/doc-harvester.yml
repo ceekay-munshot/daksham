@@ -1,0 +1,92 @@
+name: Document harvester
+
+# Foundation of the qualitative tier — collects concall transcripts + investor
+# PPTs from Screener's Documents section, caches the text, and commits the small
+# manifest. Manual-only. Default is a 15-name SMOKE TEST; raise max_companies to
+# scale up. (The AI-extraction routine will run after this in the same workflow.)
+on:
+  workflow_dispatch:
+    inputs:
+      max_companies:
+        description: "Companies to harvest this run (default 15 = smoke test)."
+        required: false
+        default: "15"
+      start_at:
+        description: "Resume offset (index into liquid-universe.json)."
+        required: false
+        default: "0"
+      debug_dump_html:
+        description: "Dump each company page HTML to the doc cache (DOM debugging)."
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: doc-harvester
+  cancel-in-progress: false
+
+jobs:
+  harvest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      SCREENER_EMAIL: ${{ secrets.SCREENER_EMAIL }}
+      SCREENER_PASSWORD: ${{ secrets.SCREENER_PASSWORD }}
+      FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+
+      # Persist the (gitignored) document text cache across runs so transcripts
+      # aren't re-downloaded each time.
+      - name: Cache harvested documents
+        uses: actions/cache@v4
+        with:
+          path: cache/docs
+          key: docs-${{ github.run_id }}
+          restore-keys: |
+            docs-
+
+      - name: Harvest documents
+        env:
+          MAX_COMPANIES: ${{ inputs.max_companies }}
+          START_AT: ${{ inputs.start_at }}
+          DEBUG_DUMP_HTML: ${{ inputs.debug_dump_html }}
+        run: node scrapers/doc-harvester.mjs
+
+      - name: Commit manifest + todo
+        if: ${{ always() && github.ref_name == github.event.repository.default_branch }}
+        run: |
+          set -e
+          BR="${{ github.event.repository.default_branch }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/data/docs-manifest.json public/data/docs-todo.json
+          if git diff --cached --quiet; then
+            echo "No manifest changes — nothing to commit."
+            exit 0
+          fi
+          git commit -m "Docs harvest ($(date -u +%F))"
+          for i in 1 2 3 4; do
+            if git push origin "HEAD:$BR"; then echo "pushed"; exit 0; fi
+            echo "push attempt $i failed — fetching + rebasing, then retrying"
+            git fetch origin "$BR"
+            git rebase "origin/$BR"
+            sleep $((2 ** i))
+          done
+          echo "push failed after 4 attempts"; exit 1

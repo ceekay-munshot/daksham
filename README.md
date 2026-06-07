@@ -143,6 +143,44 @@ SCREENER_EMAIL=you@example.com SCREENER_PASSWORD=secret MAX_COMPANIES=3 node scr
 of hours — smoke-test first, then run the rest, optionally in batches via
 `START_AT` + `MAX_COMPANIES`.)
 
+## Document harvester (qualitative tier)
+
+`scrapers/doc-harvester.mjs` collects the documents the qualitative AI routines
+will read — the last 4 **concall transcripts** + the latest **investor PPT** per
+liquid company — from Screener's Documents / Concalls section (logged in). It
+downloads each PDF via the logged-in browser context, extracts text
+(`pdf-parse`), and caches it. Incremental (skips cached), per-company non-fatal,
+300 ms politeness between companies.
+
+- The **cache** (`cache/docs/<slug>/<type>-<yyyy-mm>.txt`) is **gitignored** —
+  large & regenerable. Only the manifest + todo are committed.
+- Scanned / image PDFs (no extractable text) are flagged `ocr_needed`, not failed.
+- Fallbacks (AlphaStreet / BSE-NSE filings) are a later iteration; the logged-in
+  browser-context download already handles most BSE/IR-hosted PDFs.
+
+### Outputs (committed)
+
+| File | Contents |
+| --- | --- |
+| `public/data/docs-manifest.json` | `{ slug → [ { type:"transcript"\|"ppt", period, source, cached_path, chars, ocr_needed } ] }` |
+| `public/data/docs-todo.json` | `{ generated_at, none_found, names[] }` — liquid names with no documents found |
+
+### Run / smoke test
+
+Manual workflow **Document harvester** (`workflow_dispatch`). Defaults to a
+**15-name smoke test** (`max_companies = 15`); raise it (or batch via `start_at`)
+to scale up — **don't run all 947 yet**. Uses the `SCREENER_*` secrets;
+`FIRECRAWL_API_KEY` optional. The `cache/docs` text cache persists across runs via
+`actions/cache`.
+
+```bash
+SCREENER_EMAIL=... SCREENER_PASSWORD=... MAX_COMPANIES=15 node scrapers/doc-harvester.mjs
+```
+
+Console summary: `companies_with_docs`, `transcripts_cached`, `ppts_cached`,
+`none_found`. (AI extraction, third-party industry news, and annual-report
+harvesting are later steps.)
+
 ## Evaluation layer
 
 `eval/evaluate.mjs` is **pure ESM (browser + Node, no DOM deps)**. `evaluate(companyRow)`
