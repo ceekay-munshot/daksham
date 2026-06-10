@@ -181,6 +181,31 @@ Console summary: `companies_with_docs`, `transcripts_cached`, `ppts_cached`,
 `none_found`. (AI extraction, third-party industry news, and annual-report
 harvesting are later steps.)
 
+### Corpus cache (persistence)
+
+The extracted text (`cache/docs/`) is **not committed** (gitignored — ~49 MB,
+regenerable). It's persisted in **`actions/cache`** under a stable prefix so the
+harvest and any downstream (AI-extraction) job can share it:
+
+- **Writer** (`doc-harvester`): `key: docs-<run_id>`, `restore-keys: docs-` —
+  each run saves a new immutable snapshot; the latest is the full corpus.
+- **Readers** (`corpus-check`, AI extraction): `actions/cache/restore@v4` with
+  `restore-keys: docs-` (read-only — no post-job save, so readers never duplicate
+  the corpus). The non-matching primary key forces the prefix lookup, returning
+  the most recent snapshot.
+
+The read pattern is one line — resolve `${repo}/${entry.cached_path}` and read it
+as UTF-8 (`readDoc()` in `scrapers/docs-check.mjs`, reused by the AI layer).
+
+**Verify end-to-end:** run the **Corpus check** workflow — it restores the cache
+read-only and `node scrapers/docs-check.mjs` confirms all 3,650 docs are present
+and readable (and fails loudly if the cache didn't restore).
+
+> Caveat: `actions/cache` evicts after **7 days of no access** (or 10 GB LRU).
+> Run the AI extraction within ~a week of a harvest, or the next harvest
+> re-creates the corpus. For zero eviction risk, commit a compressed archive
+> instead (gitignore-exception).
+
 ## Evaluation layer
 
 `eval/evaluate.mjs` is **pure ESM (browser + Node, no DOM deps)**. `evaluate(companyRow)`

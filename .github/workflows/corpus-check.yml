@@ -1,0 +1,38 @@
+name: Corpus check
+
+# Confirms the harvested document corpus (cache/docs/) restores from actions/cache
+# and is readable end-to-end. This is the EXACT restore step the AI-extraction
+# layer will use — run it after a harvest to verify the corpus is shareable.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      # READ-ONLY restore of the latest document cache. Using cache/restore (not
+      # cache) means no post-job save — readers never duplicate the ~49 MB corpus.
+      # The non-matching primary key forces the restore-keys prefix lookup, which
+      # returns the most recent `docs-*` snapshot (the full corpus).
+      - name: Restore document corpus (read-only)
+        uses: actions/cache/restore@v4
+        with:
+          path: cache/docs
+          key: docs-corpus-readonly-${{ github.run_id }}
+          restore-keys: |
+            docs-
+
+      - name: Verify corpus readable end-to-end
+        run: node scrapers/docs-check.mjs
