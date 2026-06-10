@@ -1,0 +1,95 @@
+name: AI qualitative extraction
+
+# Company OWN-DOCUMENT qualitative cluster. Restores the harvested corpus
+# (actions/cache or the committed archive), pre-filters each company's concall +
+# PPT text, makes ONE structured model call, and commits daksham-qualitative.json.
+#
+# Provider is auto-picked by whichever API key secret is set (Gemini free tier by
+# default). Default is a 20-company SMOKE TEST — raise max_companies to scale up.
+# Crash-resumable: if a daily quota is hit it saves progress; re-run with start_at.
+on:
+  workflow_dispatch:
+    inputs:
+      max_companies:
+        description: "Companies to extract this run (default 20 = smoke test)."
+        required: false
+        default: "20"
+      start_at:
+        description: "Resume offset (index into the docs universe)."
+        required: false
+        default: "0"
+      provider:
+        description: "Force a provider (gemini|openai|anthropic|mock). Blank = auto by key."
+        required: false
+        default: ""
+      model:
+        description: "Override the model id (blank = provider default)."
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ai-qualitative
+  cancel-in-progress: false
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      # Read-only restore of the harvested corpus from actions/cache.
+      - name: Restore document corpus (read-only)
+        uses: actions/cache/restore@v4
+        with:
+          path: cache/docs
+          key: ai-qualitative-readonly-${{ github.run_id }}
+          restore-keys: |
+            docs-
+
+      # Cache hit → use it; miss → unpack the committed archive (durable fallback).
+      - name: Ensure corpus present (cache or committed archive)
+        run: node scrapers/corpus-archive.mjs ensure
+
+      - name: Extract qualitative cluster
+        env:
+          MAX_COMPANIES: ${{ inputs.max_companies }}
+          START_AT: ${{ inputs.start_at }}
+          PROVIDER: ${{ inputs.provider }}
+          MODEL: ${{ inputs.model }}
+        run: node scrapers/ai-extract.mjs
+
+      - name: Commit qualitative data
+        if: ${{ always() && github.ref_name == github.event.repository.default_branch }}
+        run: |
+          set -e
+          BR="${{ github.event.repository.default_branch }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/data/daksham-qualitative.json
+          if git diff --cached --quiet; then
+            echo "No qualitative changes — nothing to commit."
+            exit 0
+          fi
+          git commit -m "AI qualitative extraction ($(date -u +%F))"
+          for i in 1 2 3 4; do
+            if git push origin "HEAD:$BR"; then echo "pushed"; exit 0; fi
+            echo "push attempt $i failed — fetching + rebasing, then retrying"
+            git fetch origin "$BR"
+            git rebase "origin/$BR"
+            sleep $((2 ** i))
+          done
+          echo "push failed after 4 attempts"; exit 1

@@ -217,6 +217,57 @@ yields the corpus).
 > `corpus/docs.tar.xz` does not, so the corpus is always recoverable even between
 > quarterly harvests.
 
+## AI qualitative extraction (own-document lens)
+
+`scrapers/ai-extract.mjs` reads the corpus (via `corpus-archive ensure` +
+`readDoc`) and, for each company, distils the last 4 concall transcripts + the
+latest PPT into the **own-document qualitative cluster** — what management itself
+says about its business. One structured model call per company →
+`public/data/daksham-qualitative.json` (separate from `daksham-companies.json`;
+the UI merges them).
+
+**Pre-filter, never whole transcripts.** It keeps only (a) the management opening
+remarks and (b) Q&A sentences hitting the relevance keywords (guidance / outlook /
+order book / margin / demand / capacity / fund-raise / inventory / market share …),
+deduped and capped (`MAX_INPUT_CHARS`, default 24,000 ≈ 6k tokens). That's a ~7×
+token cut and less noise → better accuracy. No usable docs → every field NA.
+
+**Params** (each → a verdict object `{ key, label, value, verdict, output_type,
+note, confidence, source }`): `guidance_revenue`, `guidance_margin` (implied);
+`order_book`, `mgmt_tone`, `market_share` (pass/fail); `strategic_stocking`
+(pos/neu/neg); `demand_anticipation` (1–5); `capital_raised` (pass/flag).
+
+**Provider — free by default, auto-picked by whichever key is set:**
+
+| Priority | Key | Model | Notes |
+|---|---|---|---|
+| 1 | `GEMINI_API_KEY` | `gemini-2.5-flash` | **default, free tier** |
+| 2 | `OPENAI_API_KEY` | `gpt-4o-mini` | cheap fallback |
+| 3 | `ANTHROPIC_API_KEY` | `claude-sonnet-4-6` | quality fallback |
+
+Override with `PROVIDER` / `MODEL`. Output is forced to strict JSON (Gemini
+`responseSchema` / OpenAI strict `json_schema` / Anthropic forced tool-use); a
+malformed reply is retried once, then that company is marked NA. Free-tier
+discipline: throttled to `RPM` (default 15) req/min, 429/5xx retried with
+exponential backoff, and the run is crash-resumable (`START_AT`) so it can span
+days if a quota is hit (~1,500 req/day comfortably covers all 858).
+
+**Get a free Gemini key:** [aistudio.google.com/apikey](https://aistudio.google.com/apikey)
+→ *Create API key* (no card). Then:
+
+```bash
+GEMINI_API_KEY=… MAX_COMPANIES=20 npm run extract:qualitative   # 20-company smoke
+PROVIDER=mock  MAX_COMPANIES=20 npm run extract:qualitative      # offline dry run ($0, no key)
+```
+
+Or run the **AI qualitative extraction** workflow (add `GEMINI_API_KEY` as a repo
+secret; default input is the 20-company smoke). The smoke prints sample outputs,
+tokens/company, provider/model, and the cost line. Scale up only after review.
+
+> Industry-lens params (triangulated Porter's-five, China-imports, govt-regulation,
+> inventory-buildup) are a **later** routine — they need industry-peer + third-party
+> news harvesting that isn't built yet.
+
 ## Evaluation layer
 
 `eval/evaluate.mjs` is **pure ESM (browser + Node, no DOM deps)**. `evaluate(companyRow)`
