@@ -6,13 +6,14 @@
 import { RESPONSE_SCHEMA, toGeminiSchema, PARAMS } from './qualitative.mjs';
 
 export class LLMError extends Error {
-  constructor(message, { status = 0, retryable = false, quota = false, parse = false } = {}) {
+  constructor(message, { status = 0, retryable = false, quota = false, parse = false, body = '' } = {}) {
     super(message);
     this.name = 'LLMError';
     this.status = status;
     this.retryable = retryable;
     this.quota = quota;
     this.parse = parse;
+    this.body = body;
   }
 }
 
@@ -31,7 +32,7 @@ async function fetchJSON(url, options, timeoutMs) {
   if (!res.ok) {
     const retryable = res.status === 429 || res.status >= 500;
     const quota = res.status === 429 && /quota|exhaust|exceed|rate/i.test(body);
-    throw new LLMError(`${res.status} ${res.statusText}: ${body.slice(0, 300)}`, { status: res.status, retryable, quota });
+    throw new LLMError(`${res.status} ${res.statusText}: ${body.slice(0, 300)}`, { status: res.status, retryable, quota, body: body.slice(0, 500) });
   }
   return body;
 }
@@ -49,14 +50,18 @@ function parseStrict(text) {
 // ---- Gemini (generativelanguage v1beta) -----------------------------------
 async function callGemini({ model, apiKey, system, user, timeoutMs }) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${apiKey}`;
+  const generationConfig = {
+    temperature: 0,
+    responseMimeType: 'application/json',
+    responseSchema: toGeminiSchema(RESPONSE_SCHEMA),
+  };
+  // Disable "thinking" on 2.5-series models — unneeded for structured extraction,
+  // and lighter requests are faster and far less prone to free-tier 503s.
+  if (/2\.5/.test(model)) generationConfig.thinkingConfig = { thinkingBudget: 0 };
   const payload = {
     systemInstruction: { parts: [{ text: system }] },
     contents: [{ role: 'user', parts: [{ text: user }] }],
-    generationConfig: {
-      temperature: 0,
-      responseMimeType: 'application/json',
-      responseSchema: toGeminiSchema(RESPONSE_SCHEMA),
-    },
+    generationConfig,
   };
   const body = await fetchJSON(url, {
     method: 'POST',
