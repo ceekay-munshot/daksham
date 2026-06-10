@@ -63,11 +63,21 @@ jobs:
             docs-
 
       - name: Harvest documents
+        id: harvest
         env:
           MAX_COMPANIES: ${{ inputs.max_companies }}
           START_AT: ${{ inputs.start_at }}
           DEBUG_DUMP_HTML: ${{ inputs.debug_dump_html }}
         run: node scrapers/doc-harvester.mjs
+
+      # Refresh the committed, compressed corpus snapshot — the durable fallback
+      # on top of actions/cache (git never evicts). Reproducible tar means no
+      # commit when the corpus is unchanged. Success-only so a failed/partial run
+      # can't overwrite a good archive with a smaller one. cache/docs here holds
+      # the full accumulated corpus (restore-keys docs- + this run's additions).
+      - name: Pack corpus archive
+        if: ${{ steps.harvest.outcome == 'success' }}
+        run: node scrapers/corpus-archive.mjs pack
 
       - name: Commit manifest + todo
         if: ${{ always() && github.ref_name == github.event.repository.default_branch }}
@@ -77,8 +87,11 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add public/data/docs-manifest.json public/data/docs-todo.json
+          # Pack runs success-only; add the archive when it was (re)built so it
+          # commits in the same commit as the manifest (they never drift apart).
+          [ -f corpus/docs.tar.gz ] && git add corpus/docs.tar.gz || true
           if git diff --cached --quiet; then
-            echo "No manifest changes — nothing to commit."
+            echo "No manifest or corpus changes — nothing to commit."
             exit 0
           fi
           git commit -m "Docs harvest ($(date -u +%F))"

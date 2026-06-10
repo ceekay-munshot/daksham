@@ -183,28 +183,38 @@ harvesting are later steps.)
 
 ### Corpus cache (persistence)
 
-The extracted text (`cache/docs/`) is **not committed** (gitignored — ~49 MB,
-regenerable). It's persisted in **`actions/cache`** under a stable prefix so the
-harvest and any downstream (AI-extraction) job can share it:
+The extracted text (`cache/docs/`, ~49 MB, gitignored) is **not committed
+raw**. It's persisted in two tiers so the harvest and any downstream
+(AI-extraction) job can share it:
 
-- **Writer** (`doc-harvester`): `key: docs-<run_id>`, `restore-keys: docs-` —
-  each run saves a new immutable snapshot; the latest is the full corpus.
-- **Readers** (`corpus-check`, AI extraction): `actions/cache/restore@v4` with
-  `restore-keys: docs-` (read-only — no post-job save, so readers never duplicate
-  the corpus). The non-matching primary key forces the prefix lookup, returning
-  the most recent snapshot.
+1. **`actions/cache`** — the fast path, under a stable prefix.
+   - **Writer** (`doc-harvester`): `key: docs-<run_id>`, `restore-keys: docs-` —
+     each run saves a new immutable snapshot; the latest is the full corpus.
+   - **Readers** (`corpus-check`, AI extraction): `actions/cache/restore@v4`
+     with `restore-keys: docs-` (read-only — no post-job save, so readers never
+     duplicate the corpus). The non-matching primary key forces the prefix
+     lookup, returning the most recent snapshot.
+2. **`corpus/docs.tar.gz`** — a committed, compressed snapshot (~15 MB): the
+   **durable fallback** that git never evicts. Packed by `corpus-archive.mjs`
+   (reproducible tar → the blob only changes when the corpus changes), it commits
+   **in lockstep with the manifest** (same commit), so the two never drift. The
+   `doc-harvester` packs it after each successful harvest; the **Archive corpus**
+   workflow refreshes it on demand from the current cache.
 
-The read pattern is one line — resolve `${repo}/${entry.cached_path}` and read it
-as UTF-8 (`readDoc()` in `scrapers/docs-check.mjs`, reused by the AI layer).
+**Read path (both tiers).** Read jobs run `node scrapers/corpus-archive.mjs
+ensure` after the cache restore — keep the cache hit, else unpack the committed
+archive. Then the per-doc read is one line: resolve `${repo}/${entry.cached_path}`
+and read it as UTF-8 (`readDoc()` in `scrapers/docs-check.mjs`, reused by the AI
+layer).
 
-**Verify end-to-end:** run the **Corpus check** workflow — it restores the cache
-read-only and `node scrapers/docs-check.mjs` confirms all 3,650 docs are present
-and readable (and fails loudly if the cache didn't restore).
+**Verify end-to-end:** run the **Corpus check** workflow — it restores the cache,
+`ensure`s the corpus (cache *or* archive), and `node scrapers/docs-check.mjs`
+confirms all 3,650 docs are present and readable (failing loudly if neither tier
+yields the corpus).
 
-> Caveat: `actions/cache` evicts after **7 days of no access** (or 10 GB LRU).
-> Run the AI extraction within ~a week of a harvest, or the next harvest
-> re-creates the corpus. For zero eviction risk, commit a compressed archive
-> instead (gitignore-exception).
+> `actions/cache` evicts after 7 days of no access (or 10 GB LRU); the committed
+> `corpus/docs.tar.gz` does not, so the corpus is always recoverable even between
+> quarterly harvests.
 
 ## Evaluation layer
 

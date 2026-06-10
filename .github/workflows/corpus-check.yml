@@ -34,5 +34,12 @@ jobs:
           restore-keys: |
             docs-
 
+      # Two-tier read: keep the actions/cache hit if it restored, else unpack the
+      # committed archive (corpus/docs.tar.gz) — the durable, never-evicting
+      # fallback. This is the exact ensure the AI-extraction job will run, so the
+      # check proves the corpus is readable via cache OR archive.
+      - name: Ensure corpus present (cache or committed archive)
+        run: node scrapers/corpus-archive.mjs ensure
+
       - name: Verify corpus readable end-to-end
         run: node scrapers/docs-check.mjs

@@ -1,0 +1,65 @@
+name: Archive corpus
+
+# One-click durable snapshot: restores the harvested document cache (actions/cache)
+# and commits a compressed archive (corpus/docs.tar.gz) — the git-backed fallback
+# that never evicts. Use it to bootstrap the archive without a full harvest, or to
+# refresh it from the current cache. (The Document harvester also packs this
+# automatically after each run, so the archive stays in lockstep with the manifest.)
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: corpus-archive
+  cancel-in-progress: false
+
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      # Read-only restore of the latest harvested corpus from actions/cache. The
+      # non-matching primary key forces the restore-keys prefix lookup, returning
+      # the most recent `docs-*` snapshot (the full corpus).
+      - name: Restore document corpus (read-only)
+        uses: actions/cache/restore@v4
+        with:
+          path: cache/docs
+          key: corpus-archive-readonly-${{ github.run_id }}
+          restore-keys: |
+            docs-
+
+      - name: Pack corpus archive
+        run: node scrapers/corpus-archive.mjs pack
+
+      - name: Commit archive
+        if: ${{ github.ref_name == github.event.repository.default_branch }}
+        run: |
+          set -e
+          BR="${{ github.event.repository.default_branch }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add corpus/docs.tar.gz
+          if git diff --cached --quiet; then
+            echo "Archive unchanged — nothing to commit."
+            exit 0
+          fi
+          git commit -m "Refresh corpus archive ($(date -u +%F))"
+          for i in 1 2 3 4; do
+            if git push origin "HEAD:$BR"; then echo "pushed"; exit 0; fi
+            echo "push attempt $i failed — fetching + rebasing, then retrying"
+            git fetch origin "$BR"
+            git rebase "origin/$BR"
+            sleep $((2 ** i))
+          done
+          echo "push failed after 4 attempts"; exit 1
