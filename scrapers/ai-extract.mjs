@@ -51,7 +51,7 @@ function readConfig() {
     apiKey,
     startAt: Math.max(0, parseInt(env.START_AT || '0', 10) || 0),
     maxCompanies: env.MAX_COMPANIES ? Math.max(1, parseInt(env.MAX_COMPANIES, 10)) : Infinity,
-    rpm: env.RPM ? Math.max(1, parseInt(env.RPM, 10)) : 15, // Gemini free tier
+    rpm: env.RPM ? Math.max(1, parseInt(env.RPM, 10)) : 10, // conservative for free tiers
     maxInputChars: env.MAX_INPUT_CHARS ? Math.max(2000, parseInt(env.MAX_INPUT_CHARS, 10)) : 24000,
     maxBackoff: 4, // per-company retries on 429/5xx before giving up on it
     stopAfter: env.STOP_AFTER ? Math.max(1, parseInt(env.STOP_AFTER, 10)) : 4, // consecutive failures → halt (outage)
@@ -76,7 +76,7 @@ function orderedSlugs(manifest, universe) {
 }
 
 function rateLimiter(rpm) {
-  const minInterval = rpm > 0 ? Math.ceil(60000 / rpm) : 0;
+  let minInterval = rpm > 0 ? Math.ceil(60000 / rpm) : 0;
   let last = 0;
   return {
     async wait() {
@@ -84,6 +84,10 @@ function rateLimiter(rpm) {
       const dt = Date.now() - last;
       if (dt < minInterval) await sleep(minInterval - dt);
       last = Date.now();
+    },
+    // After a 429 we're going too fast — permanently slow the pace (cap ~4 RPM).
+    slowDown() {
+      if (minInterval) minInterval = Math.min(Math.ceil(minInterval * 1.5), 15000);
     },
   };
 }
@@ -120,10 +124,16 @@ async function extractCompany(cfg, name, inputText, sourceQuarter, rl, log) {
         if (attempt > cfg.maxBackoff) {
           const err = new Error('transient');
           err.transient = true;
+          err.quota = e.quota;
           err.lastMsg = `${e.status || 'net'} ${String(e.body || e.message).slice(0, 200)}`;
           throw err;
         }
-        const delay = Math.min(32000, 1000 * 2 ** attempt);
+        // 429 = rate/quota: back off longer (let the per-minute window reset) and
+        // permanently slow the pace. 5xx = overload: short backoff is fine.
+        let delay;
+        if (e.retryAfterMs) delay = e.retryAfterMs;
+        else if (e.status === 429) { delay = Math.min(60000, 10000 * 2 ** (attempt - 1)); rl.slowDown(); }
+        else delay = Math.min(32000, 1000 * 2 ** attempt);
         log(`    ${e.status || 'net'} retryable — backoff ${delay}ms [${attempt}/${cfg.maxBackoff}]: ${String(e.body || e.message).slice(0, 140)}`);
         await sleep(delay + Math.floor(Math.random() * 250));
         continue;
@@ -230,9 +240,9 @@ async function main() {
           if (consecutiveTransient >= cfg.stopAfter) {
             writeOut(out);
             const resumeIdx = Math.max(0, idx - consecutiveTransient + 1);
-            log(`\n⚠ ${consecutiveTransient} companies in a row hit service-unavailable — the provider is overloaded. Stopping; progress saved.`);
-            log('    Re-run later (defaults are fine — done companies are skipped, skipped ones retried).');
-            log(`    Or jump with START_AT=${resumeIdx}. If 503s persist, set MODEL=gemini-2.5-flash-lite (more free headroom).`);
+            log(`\n⚠ ${consecutiveTransient} companies in a row hit the provider limit (429 quota / 503 overload). Stopping; progress saved.`);
+            log('    Re-run later — done companies are skipped and the rest retried (free-tier quota refills over time).');
+            log(`    Faster: MODEL=gemini-2.5-flash-lite (higher free limits) or enable billing on the key. Resume at START_AT=${resumeIdx}.`);
             return summarize(cfg, stats, t0, resumeIdx);
           }
           continue; // leave this company unwritten so a resume retries it

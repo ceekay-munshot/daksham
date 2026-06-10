@@ -11,19 +11,23 @@ on:
   workflow_dispatch:
     inputs:
       max_companies:
-        description: "Companies to extract this run (default 20 = smoke test)."
+        description: "Companies to extract this run (858 = all; it resumes, so just re-run if it stops)."
         required: false
-        default: "20"
+        default: "858"
       start_at:
-        description: "Resume offset (index into the docs universe)."
+        description: "Resume offset (leave 0 — done companies are skipped automatically)."
         required: false
         default: "0"
+      model:
+        description: "Model id. flash-lite has the highest free-tier limits."
+        required: false
+        default: "gemini-2.5-flash-lite"
+      rpm:
+        description: "Requests/min throttle (keep low for free tier)."
+        required: false
+        default: "10"
       provider:
         description: "Force a provider (gemini|openai|anthropic|mock). Blank = auto by key."
-        required: false
-        default: ""
-      model:
-        description: "Override the model id (blank = provider default)."
         required: false
         default: ""
 
@@ -70,6 +74,7 @@ jobs:
           START_AT: ${{ inputs.start_at }}
           PROVIDER: ${{ inputs.provider }}
           MODEL: ${{ inputs.model }}
+          RPM: ${{ inputs.rpm }}
         run: node scrapers/ai-extract.mjs
 
       - name: Commit qualitative data

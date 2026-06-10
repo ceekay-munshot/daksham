@@ -6,7 +6,7 @@
 import { RESPONSE_SCHEMA, toGeminiSchema, PARAMS } from './qualitative.mjs';
 
 export class LLMError extends Error {
-  constructor(message, { status = 0, retryable = false, quota = false, parse = false, body = '' } = {}) {
+  constructor(message, { status = 0, retryable = false, quota = false, parse = false, body = '', retryAfterMs = 0 } = {}) {
     super(message);
     this.name = 'LLMError';
     this.status = status;
@@ -14,6 +14,7 @@ export class LLMError extends Error {
     this.quota = quota;
     this.parse = parse;
     this.body = body;
+    this.retryAfterMs = retryAfterMs;
   }
 }
 
@@ -31,8 +32,11 @@ async function fetchJSON(url, options, timeoutMs) {
   const body = await res.text();
   if (!res.ok) {
     const retryable = res.status === 429 || res.status >= 500;
-    const quota = res.status === 429 && /quota|exhaust|exceed|rate/i.test(body);
-    throw new LLMError(`${res.status} ${res.statusText}: ${body.slice(0, 300)}`, { status: res.status, retryable, quota, body: body.slice(0, 500) });
+    const quota = res.status === 429;
+    const ra = res.headers.get('retry-after');
+    let retryAfterMs = 0;
+    if (ra) retryAfterMs = /^\d+$/.test(ra.trim()) ? parseInt(ra, 10) * 1000 : Math.max(0, new Date(ra).getTime() - Date.now());
+    throw new LLMError(`${res.status} ${res.statusText}: ${body.slice(0, 300)}`, { status: res.status, retryable, quota, body: body.slice(0, 500), retryAfterMs });
   }
   return body;
 }
