@@ -1,15 +1,18 @@
 #!/usr/bin/env node
 // Corpus archive — a committed, compressed snapshot of the document corpus that
 // serves as a DURABLE fallback on top of actions/cache. The cache evicts after
-// 7 days of no-access (or 10 GB LRU); this tarball lives in git, so the ~49 MB
-// of harvested text is always recoverable and stays versioned with the manifest.
+// 7 days of no-access (or 10 GB LRU); this tarball lives in git, so the ~154 MB
+// of harvested text (~40 MB xz'd) is always recoverable and stays versioned
+// with the manifest.
 //
-//   node scrapers/corpus-archive.mjs pack     # cache/docs        -> corpus/docs.tar.gz
-//   node scrapers/corpus-archive.mjs unpack   # corpus/docs.tar.gz -> cache/docs
+//   node scrapers/corpus-archive.mjs pack     # cache/docs        -> corpus/docs.tar.xz
+//   node scrapers/corpus-archive.mjs unpack   # corpus/docs.tar.xz -> cache/docs
 //   node scrapers/corpus-archive.mjs ensure   # populate cache/docs if empty
 //
-// pack is REPRODUCIBLE (sorted names, fixed mtime/owner, gzip from a stream) so
-// an unchanged corpus yields identical bytes — no spurious ~15 MB git commit.
+// pack is REPRODUCIBLE (sorted names, fixed mtime/owner, single-threaded xz with
+// no embedded timestamp) so an unchanged corpus yields identical bytes — no
+// spurious ~40 MB git commit. xz -9 keeps the blob clear of GitHub's 50 MB
+// recommended file-size limit.
 
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, statSync } from 'node:fs';
@@ -19,7 +22,7 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
 const DEFAULT_DOCS = path.join(ROOT, 'cache', 'docs');
-const DEFAULT_ARCHIVE = path.join(ROOT, 'corpus', 'docs.tar.gz');
+const DEFAULT_ARCHIVE = path.join(ROOT, 'corpus', 'docs.tar.xz');
 
 // True if docsDir exists and holds at least one file in any subdirectory.
 export function corpusPresent(docsDir = DEFAULT_DOCS) {
@@ -41,9 +44,10 @@ export function packCorpus({ docsDir = DEFAULT_DOCS, archive = DEFAULT_ARCHIVE }
     throw new Error(`No documents under ${docsDir} — refusing to pack an empty corpus.`);
   }
   mkdirSync(path.dirname(archive), { recursive: true });
-  // Reproducible: --sort=name + fixed mtime/owner + gnu format; tar streams to
-  // its internal gzip (which writes no filename/mtime header for stdin), so an
-  // identical corpus => identical bytes. LC_ALL=C keeps the name sort stable.
+  // Reproducible: --sort=name + fixed mtime/owner + gnu format; xz (-J) writes
+  // no timestamp, and XZ_OPT='-9 -T1' forces single-threaded so block boundaries
+  // are deterministic => an identical corpus yields identical bytes. LC_ALL=C
+  // keeps the name sort stable.
   execFileSync(
     'tar',
     [
@@ -53,13 +57,13 @@ export function packCorpus({ docsDir = DEFAULT_DOCS, archive = DEFAULT_ARCHIVE }
       '--owner=0',
       '--group=0',
       '--numeric-owner',
-      '-czf',
+      '-Jcf',
       archive,
       '-C',
       docsDir,
       '.',
     ],
-    { stdio: 'inherit', env: { ...process.env, LC_ALL: 'C' } }
+    { stdio: 'inherit', env: { ...process.env, LC_ALL: 'C', XZ_OPT: '-9 -T1' } }
   );
   return archive;
 }
@@ -68,7 +72,9 @@ export function packCorpus({ docsDir = DEFAULT_DOCS, archive = DEFAULT_ARCHIVE }
 export function unpackCorpus({ archive = DEFAULT_ARCHIVE, destDir = DEFAULT_DOCS } = {}) {
   if (!existsSync(archive)) throw new Error(`No archive at ${archive}.`);
   mkdirSync(destDir, { recursive: true });
-  execFileSync('tar', ['-xzf', archive, '-C', destDir], { stdio: 'inherit' });
+  // -xf (no -z/-J): GNU tar autodetects the compressor from magic bytes, so this
+  // works whatever the archive was packed with.
+  execFileSync('tar', ['-xf', archive, '-C', destDir], { stdio: 'inherit' });
   return destDir;
 }
 

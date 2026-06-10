@@ -183,9 +183,9 @@ harvesting are later steps.)
 
 ### Corpus cache (persistence)
 
-The extracted text (`cache/docs/`, ~49 MB, gitignored) is **not committed
-raw**. It's persisted in two tiers so the harvest and any downstream
-(AI-extraction) job can share it:
+The extracted text (`cache/docs/`, ~154 MB across 3,650 docs, gitignored) is
+**not committed raw**. It's persisted in two tiers so the harvest and any
+downstream (AI-extraction) job can share it:
 
 1. **`actions/cache`** — the fast path, under a stable prefix.
    - **Writer** (`doc-harvester`): `key: docs-<run_id>`, `restore-keys: docs-` —
@@ -194,11 +194,12 @@ raw**. It's persisted in two tiers so the harvest and any downstream
      with `restore-keys: docs-` (read-only — no post-job save, so readers never
      duplicate the corpus). The non-matching primary key forces the prefix
      lookup, returning the most recent snapshot.
-2. **`corpus/docs.tar.gz`** — a committed, compressed snapshot (~15 MB): the
+2. **`corpus/docs.tar.xz`** — a committed, compressed snapshot (~40 MB): the
    **durable fallback** that git never evicts. Packed by `corpus-archive.mjs`
-   (reproducible tar → the blob only changes when the corpus changes), it commits
-   **in lockstep with the manifest** (same commit), so the two never drift. The
-   `doc-harvester` packs it after each successful harvest; the **Archive corpus**
+   (reproducible single-threaded xz → the blob only changes when the corpus
+   changes, and stays clear of GitHub's 50 MB limit), it commits **in lockstep
+   with the manifest** (same commit), so the two never drift. The `doc-harvester`
+   packs it after each successful harvest; the **Archive corpus**
    workflow refreshes it on demand from the current cache.
 
 **Read path (both tiers).** Read jobs run `node scrapers/corpus-archive.mjs
@@ -213,7 +214,7 @@ confirms all 3,650 docs are present and readable (failing loudly if neither tier
 yields the corpus).
 
 > `actions/cache` evicts after 7 days of no access (or 10 GB LRU); the committed
-> `corpus/docs.tar.gz` does not, so the corpus is always recoverable even between
+> `corpus/docs.tar.xz` does not, so the corpus is always recoverable even between
 > quarterly harvests.
 
 ## Evaluation layer

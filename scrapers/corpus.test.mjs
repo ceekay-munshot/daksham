@@ -40,14 +40,14 @@ test('packCorpus refuses an empty corpus', () => {
   const root = tmp();
   const docs = path.join(root, 'docs');
   mkdirSync(docs, { recursive: true });
-  assert.throws(() => packCorpus({ docsDir: docs, archive: path.join(root, 'x.tar.gz') }), /empty corpus/);
+  assert.throws(() => packCorpus({ docsDir: docs, archive: path.join(root, 'x.tar.xz') }), /empty corpus/);
   rmSync(root, { recursive: true, force: true });
 });
 
 test('pack -> unpack round-trips the corpus byte-for-byte', () => {
   const root = tmp();
   const docs = path.join(root, 'docs');
-  const archive = path.join(root, 'corpus', 'docs.tar.gz');
+  const archive = path.join(root, 'corpus', 'docs.tar.xz');
   seedDocs(docs);
 
   packCorpus({ docsDir: docs, archive });
@@ -66,8 +66,8 @@ test('pack is reproducible — identical content yields identical bytes despite 
   const docs = path.join(root, 'docs');
   seedDocs(docs);
 
-  const a1 = path.join(root, 'a1.tar.gz');
-  const a2 = path.join(root, 'a2.tar.gz');
+  const a1 = path.join(root, 'a1.tar.xz');
+  const a2 = path.join(root, 'a2.tar.xz');
   packCorpus({ docsDir: docs, archive: a1 });
 
   // Bump every file's mtime an hour into the future; --mtime=@0 must normalize
@@ -85,7 +85,7 @@ test('pack is reproducible — identical content yields identical bytes despite 
 test('ensureCorpus: restores from the archive on a cache miss, keeps a cache hit', () => {
   const root = tmp();
   const docs = path.join(root, 'docs'); // starts empty -> cache miss
-  const archive = path.join(root, 'corpus', 'docs.tar.gz');
+  const archive = path.join(root, 'corpus', 'docs.tar.xz');
 
   const seed = path.join(root, 'seed');
   seedDocs(seed);
@@ -104,7 +104,7 @@ test('ensureCorpus: restores from the archive on a cache miss, keeps a cache hit
 test('ensureCorpus: clear error when neither cache nor archive exists', () => {
   const root = tmp();
   const docs = path.join(root, 'docs');
-  const archive = path.join(root, 'corpus', 'docs.tar.gz');
+  const archive = path.join(root, 'corpus', 'docs.tar.xz');
   assert.throws(() => ensureCorpus({ docsDir: docs, archive }), /no committed archive/);
   rmSync(root, { recursive: true, force: true });
 });

@@ -35,7 +35,7 @@ jobs:
             docs-
 
       # Two-tier read: keep the actions/cache hit if it restored, else unpack the
-      # committed archive (corpus/docs.tar.gz) — the durable, never-evicting
+      # committed archive (corpus/docs.tar.xz) — the durable, never-evicting
       # fallback. This is the exact ensure the AI-extraction job will run, so the
       # check proves the corpus is readable via cache OR archive.
       - name: Ensure corpus present (cache or committed archive)

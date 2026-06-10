@@ -1,7 +1,7 @@
 name: Archive corpus
 
 # One-click durable snapshot: restores the harvested document cache (actions/cache)
-# and commits a compressed archive (corpus/docs.tar.gz) — the git-backed fallback
+# and commits a compressed archive (corpus/docs.tar.xz) — the git-backed fallback
 # that never evicts. Use it to bootstrap the archive without a full harvest, or to
 # refresh it from the current cache. (The Document harvester also packs this
 # automatically after each run, so the archive stays in lockstep with the manifest.)
@@ -49,7 +49,7 @@ jobs:
           BR="${{ github.event.repository.default_branch }}"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add corpus/docs.tar.gz
+          git add corpus/docs.tar.xz
           if git diff --cached --quiet; then
             echo "Archive unchanged — nothing to commit."
             exit 0

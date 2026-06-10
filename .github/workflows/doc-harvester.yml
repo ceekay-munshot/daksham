@@ -89,7 +89,7 @@ jobs:
           git add public/data/docs-manifest.json public/data/docs-todo.json
           # Pack runs success-only; add the archive when it was (re)built so it
           # commits in the same commit as the manifest (they never drift apart).
-          [ -f corpus/docs.tar.gz ] && git add corpus/docs.tar.gz || true
+          [ -f corpus/docs.tar.xz ] && git add corpus/docs.tar.xz || true
           if git diff --cached --quiet; then
             echo "No manifest or corpus changes — nothing to commit."
             exit 0
