@@ -4,9 +4,10 @@ name: AI qualitative extraction
 # (actions/cache or the committed archive), pre-filters each company's concall +
 # PPT text, makes ONE structured model call, and commits daksham-qualitative.json.
 #
-# Provider is auto-picked by whichever API key secret is set (Gemini free tier by
-# default). Default is a 20-company SMOKE TEST — raise max_companies to scale up.
-# Crash-resumable: if a daily quota is hit it saves progress; re-run with start_at.
+# Provider is auto-picked by whichever API key secret is set (Gemini free tier).
+# 100% free: defaults to gemini-2.5-flash-lite at 10 RPM. Crash-resumable — it
+# skips companies already done, so it just continues each run. A schedule
+# auto-resumes it until all 858 are extracted, then runs no-op (nothing to commit).
 on:
   workflow_dispatch:
     inputs:
@@ -30,6 +31,10 @@ on:
         description: "Force a provider (gemini|openai|anthropic|mock). Blank = auto by key."
         required: false
         default: ""
+  # Free-tier auto-resume: every 6h, pick up where the last run stopped. Harmless
+  # no-op once everything is extracted (the commit step finds no changes).
+  schedule:
+    - cron: "0 */6 * * *"
 
 permissions:
   contents: write
@@ -70,11 +75,12 @@ jobs:
 
       - name: Extract qualitative cluster
         env:
-          MAX_COMPANIES: ${{ inputs.max_companies }}
-          START_AT: ${{ inputs.start_at }}
+          # On scheduled runs inputs are empty — fall back to the free-tier defaults.
+          MAX_COMPANIES: ${{ inputs.max_companies || '858' }}
+          START_AT: ${{ inputs.start_at || '0' }}
           PROVIDER: ${{ inputs.provider }}
-          MODEL: ${{ inputs.model }}
-          RPM: ${{ inputs.rpm }}
+          MODEL: ${{ inputs.model || 'gemini-2.5-flash-lite' }}
+          RPM: ${{ inputs.rpm || '10' }}
         run: node scrapers/ai-extract.mjs
 
       - name: Commit qualitative data
