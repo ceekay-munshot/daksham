@@ -2,7 +2,7 @@
 // and open the full chart (chart.js) with a Screener source link.
 
 import { CHECK_KEYS } from './evaluate.mjs';
-import { esc, inrCr, price, mult, fmtMetric, pill } from './format.js';
+import { esc, inrCr, price, mult, fmtMetric, pill, qualPill } from './format.js';
 import { sectorChip } from './sectors.js';
 import { sparkline } from './sparkline.js';
 import { openChart } from './chart.js';
@@ -133,6 +133,60 @@ function sectionHtml(sec, rec, store) {
   </div>`;
 }
 
+// ── Qualitative · own-document lens (AI extraction) ──────────────────────────
+const QUAL_ORDER = [
+  'guidance_revenue', 'guidance_margin', 'order_book', 'mgmt_tone',
+  'strategic_stocking', 'market_share', 'demand_anticipation', 'capital_raised',
+];
+const QUAL_ICONS = {
+  guidance_revenue: 'trending-up', guidance_margin: 'percent', order_book: 'clipboard-list',
+  mgmt_tone: 'mic', strategic_stocking: 'package', market_share: 'pie-chart',
+  demand_anticipation: 'radar', capital_raised: 'banknote',
+};
+
+function qualRow(p) {
+  if (!p) return '';
+  let main = `<div class="prow-label">${esc(p.label)}</div>`;
+  if (p.value) main += `<div class="prow-subval">${esc(String(p.value))}</div>`;
+  if (p.note) main += `<div class="prow-note">${esc(p.note)}</div>`;
+  const meta = [];
+  if (p.verdict !== 'NA' && p.source) meta.push(`<span class="qmeta-src">${esc(p.source)}</span>`);
+  if (p.verdict !== 'NA' && p.confidence) meta.push(`<span class="qmeta-conf qconf-${esc(p.confidence)}">${esc(p.confidence)} confidence</span>`);
+  if (meta.length) main += `<div class="prow-meta">${meta.join('')}</div>`;
+  return `<div class="prow">
+    <span class="prow-ic"><i data-lucide="${QUAL_ICONS[p.key] || 'sparkles'}"></i></span>
+    <div class="prow-main">${main}</div>
+    <div class="prow-right">${qualPill(p)}</div>
+  </div>`;
+}
+
+function qualHtml(rec) {
+  const head = (sub) => `<div class="dsection-head">
+    <span class="sec-ic" style="--sec-grad:linear-gradient(135deg,#14b8a6,#0d9488)"><i data-lucide="message-square-quote"></i></span>
+    <span class="dsection-title">Qualitative · own-document lens</span>
+    <span class="dsection-sub">${sub}</span>
+  </div>`;
+
+  if (!rec.qual || !rec.qual.params) {
+    return `<div class="dsection">${head('AI read pending')}
+      <div class="prow">
+        <span class="prow-ic"><i data-lucide="hourglass"></i></span>
+        <div class="prow-main"><div class="prow-note">Not yet extracted — run the AI qualitative extraction workflow to fill these from the company's concalls &amp; investor PPT.</div></div>
+        <div class="prow-right"><span class="pill pill-soon">Pending</span></div>
+      </div></div>`;
+  }
+
+  const params = rec.qual.params;
+  const real = QUAL_ORDER.filter((k) => params[k] && params[k].verdict !== 'NA').length;
+  const latest = rec.qual.meta && rec.qual.meta.source ? ` · latest ${esc(rec.qual.meta.source)}` : '';
+  const rows = QUAL_ORDER.map((k) => qualRow(params[k])).join('');
+  const src = `https://www.screener.in${rec.row.path || ''}#documents`;
+  const chip = `<a class="src-chip" style="margin-top:12px" href="${esc(src)}" target="_blank" rel="noopener">
+    <span class="src-ic"><i data-lucide="file-text"></i></span><span>Source: concalls &amp; investor PPT on <b>Screener.in</b></span><i data-lucide="external-link" class="src-ext"></i>
+  </a>`;
+  return `<div class="dsection">${head(`${real}/8 from management commentary${latest}`)}${rows}${chip}</div>`;
+}
+
 function moatHtml(rec) {
   const deferred = Object.values(rec.params).filter((p) => p.output_type === 'deferred');
   const rows = deferred
@@ -230,7 +284,7 @@ export function openDossier(rec) {
   }
 
   const store = { n: 0, map: {} };
-  const body = SECTIONS.map((s) => sectionHtml(s, rec, store)).join('') + moatHtml(rec);
+  const body = SECTIONS.map((s) => sectionHtml(s, rec, store)).join('') + qualHtml(rec) + moatHtml(rec);
   charts = store.map;
 
   elDossier.innerHTML = `

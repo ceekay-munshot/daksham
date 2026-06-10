@@ -37,8 +37,9 @@ async function load() {
   let liquid = null;
   let companiesMeta = {};
   let universeMeta = {};
+  let qual = null;
   try {
-    [companies, liquid, companiesMeta, universeMeta] = await Promise.all([
+    [companies, liquid, companiesMeta, universeMeta, qual] = await Promise.all([
       fetch('data/daksham-companies.json').then((r) => {
         if (!r.ok) throw new Error('companies');
         return r.json();
@@ -46,6 +47,7 @@ async function load() {
       fetch('data/liquid-universe.json').then((r) => (r.ok ? r.json() : null)).catch(() => null),
       fetch('data/companies-metadata.json').then((r) => r.json()).catch(() => ({})),
       fetch('data/universe-metadata.json').then((r) => r.json()).catch(() => ({})),
+      fetch('data/daksham-qualitative.json').then((r) => (r.ok ? r.json() : null)).catch(() => null),
     ]);
   } catch (err) {
     return errorState();
@@ -59,9 +61,19 @@ async function load() {
   // and mark not-yet-crawled entrants as "metrics pending".
   const byPath = new Map(companies.map((c) => [c.path, c]));
   const spine = Array.isArray(liquid) && liquid.length ? liquid : companies;
+
+  // AI qualitative cluster (own-document lens) — a separate file, joined by slug.
+  const qualBySlug = new Map();
+  if (qual && qual.companies) for (const [slug, v] of Object.entries(qual.companies)) qualBySlug.set(slug, v);
+  state.qualMeta = qual ? { generated_at: qual.generated_at, provider: qual.provider, model: qual.model, dry_run: qual.dry_run } : null;
+
   state.records = spine.map((row) => {
     const full = byPath.get(row.path);
-    return full ? enrich(full) : enrichPending(row);
+    const rec = full ? enrich(full) : enrichPending(row);
+    const q = qualBySlug.get(rec.slug);
+    rec.qual = q && q.params ? q : null;
+    rec.qualReal = rec.qual ? Object.values(rec.qual.params).filter((p) => p.verdict !== 'NA').length : 0;
+    return rec;
   });
   state.bySlug = new Map(state.records.map((r) => [r.slug, r]));
   const sample = state.records.find((r) => !r.pending);

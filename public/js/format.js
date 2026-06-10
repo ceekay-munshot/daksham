@@ -79,3 +79,28 @@ export function pill(p) {
       return '';
   }
 }
+
+// Verdict pill for a qualitative param (own-document lens) — maps the extra
+// verdicts (DISCLOSED / Positive·Neutral·Negative / 1–5 / FLAG) to pill styles.
+export function qualPill(p) {
+  if (!p) return '';
+  const v = String(p.verdict);
+  if (v === 'NA') return `<span class="pill pill-na" title="${esc(p.note)}">N/A</span>`;
+  if (/^[1-5]$/.test(v)) {
+    const n = Number(v);
+    const cls = n <= 2 ? 'pill-pass' : n === 3 ? 'pill-neu' : 'pill-fail';
+    const lbl = { 1: 'Very strong', 2: 'Strong', 3: 'Moderate', 4: 'Weak', 5: 'Very weak' }[n];
+    return `<span class="pill ${cls}">${v} · ${lbl}</span>`;
+  }
+  const map = {
+    PASS: ['pill-pass', 'PASS'],
+    FAIL: ['pill-fail', 'FAIL'],
+    FLAG: ['pill-flag', 'FLAG'],
+    Positive: ['pill-pass', 'Positive'],
+    Negative: ['pill-fail', 'Negative'],
+    Neutral: ['pill-neu', 'Neutral'],
+    DISCLOSED: ['pill-info', 'Disclosed'],
+  };
+  const [cls, lbl] = map[v] || ['pill-na', v];
+  return `<span class="pill ${cls}">${esc(lbl)}</span>`;
+}

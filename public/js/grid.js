@@ -58,7 +58,7 @@ function rowHtml(rec, i) {
       <div class="co-cell">
         <span class="co-rank hide-sm">${i + 1}</span>
         <div>
-          <div class="co-name">${esc(rec.name)}</div>
+          <div class="co-name">${esc(rec.name)}${rec.qualReal ? `<span class="ai-badge" title="${rec.qualReal}/8 AI qualitative signals from management commentary">AI</span>` : ''}</div>
           <div class="co-meta">${sectorChip(rec.sector)}<span class="co-slug">${esc(rec.slug)}</span></div>
         </div>
       </div>
