@@ -117,13 +117,20 @@ async function attemptCompany(prov, name, inputText, sourceQuarter, cfg, log) {
       return { kind: 'ok', params: shapeVerdicts(parsed, { sourceQuarter }), usage };
     } catch (e) {
       if (e.retryable) {
+        // A multi-minute Retry-After means the provider's window/daily quota is
+        // gone — don't sleep it off (could be >1h); set it aside and fail over.
+        if (e.retryAfterMs > 120000) {
+          return { kind: 'transient', cooldown: true, detail: `rate-limited (~${Math.round(e.retryAfterMs / 1000)}s cooldown)` };
+        }
         attempt += 1;
         if (attempt > cfg.maxBackoff) return { kind: 'transient', detail: `${e.status || 'net'} ${String(e.body || e.message).slice(0, 110)}` };
-        // 429 = rate/quota: back off longer + permanently slow this provider's pace.
-        let delay;
-        if (e.retryAfterMs) delay = e.retryAfterMs;
-        else if (e.status === 429) { delay = Math.min(60000, 10000 * 2 ** (attempt - 1)); prov.rl.slowDown(); }
-        else delay = Math.min(32000, 1000 * 2 ** attempt);
+        // 429 = rate/quota: back off (capped 60s) + permanently slow the pace.
+        const delay = e.retryAfterMs
+          ? Math.min(e.retryAfterMs, 60000)
+          : e.status === 429
+            ? Math.min(60000, 10000 * 2 ** (attempt - 1))
+            : Math.min(32000, 1000 * 2 ** attempt);
+        if (e.status === 429) prov.rl.slowDown();
         log(`    ${prov.provider} ${e.status || 'net'} retry ${attempt}/${cfg.maxBackoff} (${delay}ms): ${String(e.body || e.message).slice(0, 100)}`);
         await sleep(delay + Math.floor(Math.random() * 250));
         continue;
@@ -244,8 +251,12 @@ async function main() {
       }
       if (r.kind === 'transient') {
         prov.fails += 1;
-        if (prov.fails >= cfg.stopAfter) { prov.exhausted = true; log(`    ${prov.provider} quota exhausted for this run — set aside`); }
-        else log(`    ${prov.provider} transient — failing over`);
+        if (r.cooldown || prov.fails >= cfg.stopAfter) {
+          prov.exhausted = true;
+          log(`    ${prov.provider} set aside for this run — ${r.cooldown ? r.detail : 'quota exhausted'}`);
+        } else {
+          log(`    ${prov.provider} transient — failing over`);
+        }
         continue;
       }
       prov.disabled = true; // fatal/structural — drop this provider for the run
