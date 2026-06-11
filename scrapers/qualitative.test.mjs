@@ -118,6 +118,11 @@ test('naAllParams: every param NA with native output_type', () => {
 test('pickProvider: key priority, overrides, and the no-key error', () => {
   assert.equal(pickProvider({ GEMINI_API_KEY: 'g' }).provider, 'gemini');
   assert.equal(pickProvider({ GEMINI_API_KEY: 'g' }).model, 'gemini-2.5-flash');
+  // Groq only → its free Llama model
+  assert.equal(pickProvider({ GROQ_API_KEY: 'gq' }).provider, 'groq');
+  assert.equal(pickProvider({ GROQ_API_KEY: 'gq' }).model, 'llama-3.3-70b-versatile');
+  // Gemini still wins over Groq when both are set (Groq is opt-in via PROVIDER=groq)
+  assert.equal(pickProvider({ GEMINI_API_KEY: 'g', GROQ_API_KEY: 'gq' }).provider, 'gemini');
   // OpenAI only
   assert.equal(pickProvider({ OPENAI_API_KEY: 'o' }).provider, 'openai');
   // Gemini wins when several are set

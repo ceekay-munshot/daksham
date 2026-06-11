@@ -104,6 +104,29 @@ async function callOpenAI({ model, apiKey, system, user, timeoutMs }) {
   return { parsed: parseStrict(text), usage: data.usage || null };
 }
 
+// ---- Groq (OpenAI-compatible, JSON mode; generous free tier) ---------------
+async function callGroq({ model, apiKey, system, user, timeoutMs }) {
+  const url = 'https://api.groq.com/openai/v1/chat/completions';
+  const payload = {
+    model,
+    temperature: 0,
+    messages: [
+      { role: 'system', content: system },
+      { role: 'user', content: user },
+    ],
+    response_format: { type: 'json_object' }, // schema enforced via the prompt + shapeVerdicts
+  };
+  const body = await fetchJSON(url, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify(payload),
+  }, timeoutMs);
+  const data = parseStrict(body);
+  const text = data?.choices?.[0]?.message?.content ?? '';
+  if (!text) throw new LLMError(`empty Groq response: ${body.slice(0, 200)}`, { parse: true });
+  return { parsed: parseStrict(text), usage: data.usage || null };
+}
+
 // ---- Anthropic (messages, forced tool-use) --------------------------------
 async function callAnthropic({ model, apiKey, system, user, timeoutMs }) {
   const url = 'https://api.anthropic.com/v1/messages';
@@ -159,6 +182,8 @@ export async function callLLM({ provider, model, apiKey, system, user, timeoutMs
   switch (provider) {
     case 'gemini':
       return callGemini({ model, apiKey, system, user, timeoutMs });
+    case 'groq':
+      return callGroq({ model, apiKey, system, user, timeoutMs });
     case 'openai':
       return callOpenAI({ model, apiKey, system, user, timeoutMs });
     case 'anthropic':
