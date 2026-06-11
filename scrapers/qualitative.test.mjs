@@ -8,6 +8,8 @@ import {
   shapeVerdicts,
   naAllParams,
   pickProvider,
+  availableProviders,
+  nextProvider,
   estimateTokens,
   toGeminiSchema,
   RESPONSE_SCHEMA,
@@ -117,7 +119,7 @@ test('naAllParams: every param NA with native output_type', () => {
 
 test('pickProvider: key priority, overrides, and the no-key error', () => {
   assert.equal(pickProvider({ GEMINI_API_KEY: 'g' }).provider, 'gemini');
-  assert.equal(pickProvider({ GEMINI_API_KEY: 'g' }).model, 'gemini-2.5-flash');
+  assert.equal(pickProvider({ GEMINI_API_KEY: 'g' }).model, 'gemini-2.5-flash-lite');
   // Groq only → its free Llama model
   assert.equal(pickProvider({ GROQ_API_KEY: 'gq' }).provider, 'groq');
   assert.equal(pickProvider({ GROQ_API_KEY: 'gq' }).model, 'llama-3.3-70b-versatile');
@@ -137,6 +139,26 @@ test('pickProvider: key priority, overrides, and the no-key error', () => {
   assert.throws(() => pickProvider({ PROVIDER: 'gemini' }), /GEMINI_API_KEY is not set/);
   // nothing set → helpful error
   assert.throws(() => pickProvider({}), /No LLM API key set/);
+});
+
+test('availableProviders: pool of every key set; single when PROVIDER forced', () => {
+  const both = availableProviders({ GEMINI_API_KEY: 'g', GROQ_API_KEY: 'gq' });
+  assert.deepEqual(both.map((p) => p.provider), ['gemini', 'groq']);
+  assert.equal(both[0].model, 'gemini-2.5-flash-lite');
+  assert.equal(both[1].model, 'llama-3.3-70b-versatile');
+  assert.deepEqual(availableProviders({ PROVIDER: 'groq', GROQ_API_KEY: 'gq' }).map((p) => p.provider), ['groq']);
+  assert.throws(() => availableProviders({}), /No LLM API key set/);
+});
+
+test('nextProvider: rotates, wraps, and skips exhausted/disabled/tried', () => {
+  const ps = [{ provider: 'gemini' }, { provider: 'groq' }];
+  assert.equal(nextProvider(ps, 0).provider.provider, 'gemini');
+  assert.equal(nextProvider(ps, 1).provider.provider, 'groq');
+  assert.equal(nextProvider(ps, 2).provider.provider, 'gemini'); // wraps
+  assert.equal(nextProvider(ps, 0, new Set(['gemini'])).provider.provider, 'groq'); // skip tried
+  const ps2 = [{ provider: 'gemini', exhausted: true }, { provider: 'groq' }];
+  assert.equal(nextProvider(ps2, 0).provider.provider, 'groq'); // skip exhausted
+  assert.equal(nextProvider([{ provider: 'gemini', disabled: true }], 0), null); // none → null
 });
 
 test('toGeminiSchema strips additionalProperties but keeps enums/required', () => {

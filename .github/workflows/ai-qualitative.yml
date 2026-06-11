@@ -4,10 +4,10 @@ name: AI qualitative extraction
 # (actions/cache or the committed archive), pre-filters each company's concall +
 # PPT text, makes ONE structured model call, and commits daksham-qualitative.json.
 #
-# Provider is auto-picked by whichever API key secret is set (Gemini free tier).
-# 100% free: defaults to gemini-2.5-flash-lite at 10 RPM. Crash-resumable — it
-# skips companies already done, so it just continues each run. A schedule
-# auto-resumes it until all 858 are extracted, then runs no-op (nothing to commit).
+# 100% free: round-robins across EVERY key set (Gemini flash-lite + Groq), failing
+# over when one's rate-limited — two free quotas per run. Crash-resumable: it skips
+# companies already done, so it just continues. A schedule auto-resumes it until all
+# 858 are extracted, then runs no-op (nothing to commit).
 on:
   workflow_dispatch:
     inputs:
@@ -20,9 +20,9 @@ on:
         required: false
         default: "0"
       model:
-        description: "Model id. flash-lite has the highest free-tier limits."
+        description: "Model id (only with a single provider). Blank = each provider's default."
         required: false
-        default: "gemini-2.5-flash-lite"
+        default: ""
       rpm:
         description: "Requests/min throttle (keep low for free tier)."
         required: false
@@ -76,10 +76,12 @@ jobs:
       - name: Extract qualitative cluster
         env:
           # On scheduled runs inputs are empty — fall back to the free-tier defaults.
+          # Blank PROVIDER + MODEL => round-robin every key set (Gemini + Groq) at
+          # each provider's default model, failing over when one is rate-limited.
           MAX_COMPANIES: ${{ inputs.max_companies || '858' }}
           START_AT: ${{ inputs.start_at || '0' }}
           PROVIDER: ${{ inputs.provider }}
-          MODEL: ${{ inputs.model || 'gemini-2.5-flash-lite' }}
+          MODEL: ${{ inputs.model }}
           RPM: ${{ inputs.rpm || '10' }}
         run: node scrapers/ai-extract.mjs
 

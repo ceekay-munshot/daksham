@@ -23,7 +23,8 @@ import {
   userPrompt,
   shapeVerdicts,
   naAllParams,
-  pickProvider,
+  availableProviders,
+  nextProvider,
   estimateTokens,
   SYSTEM_PROMPT,
   PARAMS,
@@ -44,11 +45,8 @@ const readJSON = (p, fallback) => (existsSync(p) ? JSON.parse(readFileSync(p, 'u
 
 function readConfig() {
   const env = process.env;
-  const { provider, model, apiKey } = pickProvider(env);
   return {
-    provider,
-    model,
-    apiKey,
+    providerSpecs: availableProviders(env), // one (PROVIDER set) or all keys present
     startAt: Math.max(0, parseInt(env.START_AT || '0', 10) || 0),
     maxCompanies: env.MAX_COMPANIES ? Math.max(1, parseInt(env.MAX_COMPANIES, 10)) : Infinity,
     rpm: env.RPM ? Math.max(1, parseInt(env.RPM, 10)) : 10, // conservative for free tiers
@@ -103,69 +101,68 @@ function gatherDocs(manifest, slug) {
   return docs;
 }
 
-// One company: throttle -> call -> shape. Outcomes:
-//   { kind:'ok' }      — success
-//   { kind:'failed' }  — model replied but JSON stayed malformed (terminal NA)
-//   throws transient   — 429/5xx/network exhausted; caller leaves it for resume
-//   throws fatal       — 4xx structural (key/model/schema); caller stops the run
-async function extractCompany(cfg, name, inputText, sourceQuarter, rl, log) {
-  const system = SYSTEM_PROMPT;
+// One attempt at a company with ONE provider. Returns a tagged outcome (never
+// throws), so the caller can fail over to another provider:
+//   { kind:'ok', params, usage } | { kind:'failed', params }  — provider responded
+//   { kind:'transient', detail }  — 429/5xx/network exhausted (try another provider)
+//   { kind:'fatal', detail }      — 4xx structural (disable this provider)
+async function attemptCompany(prov, name, inputText, sourceQuarter, cfg, log) {
   const user = userPrompt(name, inputText);
   let parseRetried = false;
   let attempt = 0;
   for (;;) {
-    await rl.wait();
+    await prov.rl.wait();
     try {
-      const { parsed, usage } = await callLLM({ provider: cfg.provider, model: cfg.model, apiKey: cfg.apiKey, system, user });
+      const { parsed, usage } = await callLLM({ provider: prov.provider, model: prov.model, apiKey: prov.apiKey, system: SYSTEM_PROMPT, user });
       return { kind: 'ok', params: shapeVerdicts(parsed, { sourceQuarter }), usage };
     } catch (e) {
       if (e.retryable) {
         attempt += 1;
-        if (attempt > cfg.maxBackoff) {
-          const err = new Error('transient');
-          err.transient = true;
-          err.quota = e.quota;
-          err.lastMsg = `${e.status || 'net'} ${String(e.body || e.message).slice(0, 200)}`;
-          throw err;
-        }
-        // 429 = rate/quota: back off longer (let the per-minute window reset) and
-        // permanently slow the pace. 5xx = overload: short backoff is fine.
+        if (attempt > cfg.maxBackoff) return { kind: 'transient', detail: `${e.status || 'net'} ${String(e.body || e.message).slice(0, 110)}` };
+        // 429 = rate/quota: back off longer + permanently slow this provider's pace.
         let delay;
         if (e.retryAfterMs) delay = e.retryAfterMs;
-        else if (e.status === 429) { delay = Math.min(60000, 10000 * 2 ** (attempt - 1)); rl.slowDown(); }
+        else if (e.status === 429) { delay = Math.min(60000, 10000 * 2 ** (attempt - 1)); prov.rl.slowDown(); }
         else delay = Math.min(32000, 1000 * 2 ** attempt);
-        log(`    ${e.status || 'net'} retryable — backoff ${delay}ms [${attempt}/${cfg.maxBackoff}]: ${String(e.body || e.message).slice(0, 140)}`);
+        log(`    ${prov.provider} ${e.status || 'net'} retry ${attempt}/${cfg.maxBackoff} (${delay}ms): ${String(e.body || e.message).slice(0, 100)}`);
         await sleep(delay + Math.floor(Math.random() * 250));
         continue;
       }
       if (e.parse && !parseRetried) {
         parseRetried = true;
-        log('    malformed JSON — retrying once');
+        log(`    ${prov.provider} malformed JSON — retrying once`);
         continue;
       }
-      if (e.parse) {
-        log(`    malformed JSON again — marking NA: ${String(e.message).slice(0, 140)}`);
-        return { kind: 'failed', params: naAllParams('Extraction failed (malformed model output)') };
-      }
-      const err = new Error('fatal');
-      err.fatal = true;
-      err.detail = `${e.status || ''} ${String(e.body || e.message).slice(0, 300)}`.trim();
-      throw err;
+      if (e.parse) return { kind: 'failed', params: naAllParams('Extraction failed (malformed model output)') };
+      return { kind: 'fatal', detail: `${e.status || ''} ${String(e.body || e.message).slice(0, 200)}`.trim() };
     }
   }
 }
 
-function costNote(provider) {
-  if (provider === 'mock') return '$0 (offline mock — no API call)';
-  if (provider === 'gemini') return '$0 (Gemini free tier, within RPM/RPD)';
-  return 'billable (paid provider) — check your dashboard';
+function costNote(providers) {
+  if (providers.length === 1 && providers[0].provider === 'mock') return '$0 (offline mock — no API call)';
+  const paid = providers.filter((p) => p.provider === 'openai' || p.provider === 'anthropic');
+  if (paid.length) return `includes a paid provider (${paid.map((p) => p.provider).join(', ')}) — check billing`;
+  return '$0 (all free tiers — Gemini / Groq)';
 }
 
 async function main() {
   const cfg = readConfig();
   const log = (...a) => console.log(...a);
 
-  log(`AI extraction — provider=${cfg.provider} model=${cfg.model}`);
+  // Stateful provider pool — each gets its own rate limiter + failure state, so
+  // we round-robin across free quotas and fail over when one is rate-limited.
+  const isMock = cfg.providerSpecs.length === 1 && cfg.providerSpecs[0].provider === 'mock';
+  const providers = cfg.providerSpecs.map((s) => ({
+    ...s,
+    rl: rateLimiter(s.provider === 'mock' ? 0 : cfg.rpm),
+    fails: 0,
+    exhausted: false,
+    disabled: false,
+    done: 0,
+  }));
+
+  log(`AI extraction — providers: ${providers.map((p) => `${p.provider}:${p.model}`).join(' + ')}`);
   log('Ensuring corpus is present (actions/cache or committed archive)…');
   ensureCorpus();
 
@@ -180,24 +177,23 @@ async function main() {
   const order = orderedSlugs(manifest, universe);
   const slice = order.slice(cfg.startAt, cfg.startAt === Infinity ? undefined : cfg.startAt + cfg.maxCompanies);
 
-  const out = readJSON(OUT_PATH, null) || { generated_at: '', provider: cfg.provider, model: cfg.model, input_max_chars: cfg.maxInputChars, companies: {} };
-  // Never let a MOCK dry-run and a real run inherit each other's entries: a mock
-  // placeholder must not block (skip) a real extraction, nor clobber real data.
+  const providerTag = providers.map((p) => p.provider).join(', ');
+  const out = readJSON(OUT_PATH, null) || { generated_at: '', companies: {} };
+  // Never let a MOCK dry-run and a real run inherit each other's entries.
   const wasMock = out.dry_run === true || out.provider === 'mock';
-  if (Object.keys(out.companies || {}).length && wasMock !== (cfg.provider === 'mock')) {
-    console.log('Provider realness changed (mock↔real) — starting fresh.');
+  if (Object.keys(out.companies || {}).length && wasMock !== isMock) {
+    log('Provider realness changed (mock↔real) — starting fresh.');
     out.companies = {};
   }
-  out.provider = cfg.provider;
-  out.model = cfg.model;
+  out.provider = isMock ? 'mock' : providerTag;
+  out.model = providers.map((p) => p.model).join(', ');
   out.input_max_chars = cfg.maxInputChars;
-  out.dry_run = cfg.provider === 'mock';
-  if (out.dry_run) out.note = 'MOCK dry-run — verdicts are synthetic. Run with GEMINI_API_KEY (or OPENAI/ANTHROPIC) for real extraction.';
+  out.dry_run = isMock;
+  if (isMock) out.note = 'MOCK dry-run — verdicts are synthetic. Set GEMINI_API_KEY / GROQ_API_KEY for real extraction.';
   else delete out.note;
 
-  const rl = rateLimiter(cfg.provider === 'mock' ? 0 : cfg.rpm);
   const stats = { done: 0, withDocs: 0, noDocs: 0, failed: 0, transient: 0, charsIn: 0, estTokens: 0, actualTokens: 0, actualSeen: 0 };
-  let consecutiveTransient = 0;
+  let rr = 0; // round-robin cursor
   const t0 = Date.now();
 
   log(`Companies with docs: ${order.length} | this run: [${cfg.startAt}, ${cfg.startAt + slice.length}) = ${slice.length}\n`);
@@ -218,55 +214,74 @@ async function main() {
     if (!text) {
       out.companies[slug] = { name, params: naAllParams('No transcripts/PPT harvested'), meta: { docs_used: 0, chars_in: 0 } };
       stats.noDocs += 1;
+      stats.done += 1;
       log(`[${idx}] ${slug} (${name}) — no usable docs → all NA`);
-    } else {
-      const est = estimateTokens(text);
-      log(`[${idx}] ${slug} (${name}) — ${docsUsed} docs, ${charsIn} chars (~${est} tok in) → ${cfg.provider}`);
-      let res;
-      try {
-        res = await extractCompany(cfg, name, text, sourceQuarter, rl, log);
-      } catch (e) {
-        if (e.fatal) {
-          writeOut(out);
-          log(`\n✖ Fatal API error at index ${idx} — stopping (config/request problem, NOT capacity):`);
-          log(`    ${e.detail}`);
-          log('    Check the API key, the model id (try MODEL=gemini-2.5-flash-lite), or the schema, then re-run.');
-          return summarize(cfg, stats, t0, idx);
-        }
-        if (e.transient) {
-          consecutiveTransient += 1;
-          stats.transient += 1;
-          log(`    transient (${e.lastMsg}) — leaving ${slug} for a later run [${consecutiveTransient}/${cfg.stopAfter} in a row]`);
-          if (consecutiveTransient >= cfg.stopAfter) {
-            writeOut(out);
-            const resumeIdx = Math.max(0, idx - consecutiveTransient + 1);
-            log(`\n⚠ ${consecutiveTransient} companies in a row hit the provider limit (429 quota / 503 overload). Stopping; progress saved.`);
-            log('    Re-run later — done companies are skipped and the rest retried (free-tier quota refills over time).');
-            log(`    Faster: MODEL=gemini-2.5-flash-lite (higher free limits) or enable billing on the key. Resume at START_AT=${resumeIdx}.`);
-            return summarize(cfg, stats, t0, resumeIdx);
-          }
-          continue; // leave this company unwritten so a resume retries it
-        }
-        throw e;
+      writeOut(out);
+      continue;
+    }
+
+    const est = estimateTokens(text);
+    log(`[${idx}] ${slug} (${name}) — ${docsUsed} docs, ${charsIn} chars (~${est} tok in)`);
+
+    // Try across providers (round-robin), failing over on quota/structural errors.
+    const tried = new Set();
+    let outcome = null;
+    let usedProv = null;
+    let fatalDetail = null;
+    for (let t = 0; t < providers.length; t++) {
+      const pick = nextProvider(providers, rr, tried);
+      if (!pick) break;
+      const prov = pick.provider;
+      tried.add(prov.provider);
+      const r = await attemptCompany(prov, name, text, sourceQuarter, cfg, log);
+      if (r.kind === 'ok' || r.kind === 'failed') {
+        prov.fails = 0;
+        prov.done += 1;
+        outcome = r;
+        usedProv = prov;
+        rr = (pick.index + 1) % providers.length; // next company starts on the other provider
+        break;
       }
-      consecutiveTransient = 0; // a response came back (success or terminal NA)
-      out.companies[slug] = { name, params: res.params, meta: { docs_used: docsUsed, chars_in: charsIn, est_tokens: est, source: sourceQuarter } };
+      if (r.kind === 'transient') {
+        prov.fails += 1;
+        if (prov.fails >= cfg.stopAfter) { prov.exhausted = true; log(`    ${prov.provider} quota exhausted for this run — set aside`); }
+        else log(`    ${prov.provider} transient — failing over`);
+        continue;
+      }
+      prov.disabled = true; // fatal/structural — drop this provider for the run
+      fatalDetail = `${prov.provider}: ${r.detail}`;
+      log(`    ✖ ${prov.provider} disabled (config/request error): ${r.detail}`);
+    }
+
+    if (outcome) {
+      out.companies[slug] = { name, params: outcome.params, meta: { docs_used: docsUsed, chars_in: charsIn, est_tokens: est, source: sourceQuarter, provider: usedProv.provider } };
       stats.withDocs += 1;
       stats.charsIn += charsIn;
       stats.estTokens += est;
-      if (res.kind === 'failed') stats.failed += 1;
-      const tot = res.usage && (res.usage.totalTokenCount || res.usage.total_tokens || ((res.usage.input_tokens || 0) + (res.usage.output_tokens || 0)));
-      if (tot) {
-        stats.actualTokens += tot;
-        stats.actualSeen += 1;
-      }
+      stats.done += 1;
+      if (outcome.kind === 'failed') stats.failed += 1;
+      const u = outcome.usage;
+      const tot = u && (u.totalTokenCount || u.total_tokens || ((u.input_tokens || 0) + (u.output_tokens || 0)));
+      if (tot) { stats.actualTokens += tot; stats.actualSeen += 1; }
+      writeOut(out); // incremental flush — crash-resumable
+      continue;
     }
 
-    stats.done += 1;
-    writeOut(out); // incremental flush — crash-resumable
+    // No provider produced a result for this company.
+    const active = providers.filter((p) => !p.exhausted && !p.disabled);
+    if (!active.length) {
+      writeOut(out);
+      log(`\n⚠ All providers stopped at index ${idx}; progress saved.`);
+      if (providers.every((p) => p.disabled)) log(`    Structural error (not capacity): ${fatalDetail}. Fix the key/model, then re-run.`);
+      else log('    Free-tier quota hit on every provider — re-run later (done companies skip, the rest retry).');
+      return summarize(providers, stats, t0, idx);
+    }
+    // Active providers remain (none hit stopAfter yet) — leave this one for resume.
+    stats.transient += 1;
+    log(`    left ${slug} for a later run (transient on all tried providers)`);
   }
 
-  return summarize(cfg, stats, t0, cfg.startAt + slice.length);
+  return summarize(providers, stats, t0, cfg.startAt + slice.length);
 }
 
 function writeOut(out) {
@@ -274,17 +289,20 @@ function writeOut(out) {
   writeFileSync(OUT_PATH, `${JSON.stringify(out, null, 2)}\n`);
 }
 
-function summarize(cfg, s, t0, nextIdx) {
+function summarize(providers, s, t0, nextIdx) {
   const secs = ((Date.now() - t0) / 1000).toFixed(1);
   const avgChars = s.withDocs ? Math.round(s.charsIn / s.withDocs) : 0;
   const avgEst = s.withDocs ? Math.round(s.estTokens / s.withDocs) : 0;
   const avgAct = s.actualSeen ? Math.round(s.actualTokens / s.actualSeen) : null;
+  const provLine = providers
+    .map((p) => `${p.provider} ${p.done}${p.exhausted ? ' (quota)' : ''}${p.disabled ? ' (disabled)' : ''}`)
+    .join(' | ');
   console.log('\n──────── summary ────────');
-  console.log(`provider/model : ${cfg.provider} / ${cfg.model}`);
+  console.log(`providers      : ${provLine}`);
   console.log(`processed      : ${s.done} (with docs ${s.withDocs}, no docs ${s.noDocs}, failed ${s.failed})`);
   if (s.transient) console.log(`transient skips: ${s.transient} (left for a later run — not written)`);
   console.log(`input/company  : ${avgChars} chars (~${avgEst} tokens)${avgAct != null ? ` | model-reported ~${avgAct} tok/company` : ''}`);
-  console.log(`cost           : ${costNote(cfg.provider)}`);
+  console.log(`cost           : ${costNote(providers)}`);
   console.log(`elapsed        : ${secs}s`);
   console.log(`output         : public/data/daksham-qualitative.json`);
   console.log(`next START_AT  : ${nextIdx}`);
