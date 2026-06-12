@@ -6,6 +6,7 @@ import { esc, inrCr, price, mult, fmtMetric, pill, qualPill } from './format.js'
 import { sectorChip } from './sectors.js';
 import { sparkline } from './sparkline.js';
 import { openChart } from './chart.js';
+import { exportCompany } from './export.js';
 
 const parseNums = (s) =>
   String(s ?? '')
@@ -234,6 +235,24 @@ function heroSignals(params) {
 let elDossier;
 let elOverlay;
 let charts = {};
+let currentRec = null;
+
+async function handleExport(btn) {
+  if (!currentRec) return;
+  const span = btn.querySelector('span');
+  const orig = span ? span.textContent : '';
+  btn.disabled = true;
+  if (span) span.textContent = 'Preparing…';
+  try {
+    await exportCompany(currentRec);
+  } catch (err) {
+    console.error(err);
+    alert(`Export failed: ${err.message}`);
+  } finally {
+    btn.disabled = false;
+    if (span) span.textContent = orig;
+  }
+}
 
 export function initDossier() {
   elDossier = document.getElementById('dossier');
@@ -242,6 +261,8 @@ export function initDossier() {
     if (e.target === elOverlay) closeDossier();
   });
   elDossier.addEventListener('click', (e) => {
+    const exp = e.target.closest('[data-export]');
+    if (exp) return handleExport(exp);
     if (e.target.closest('[data-close]')) return closeDossier();
     const btn = e.target.closest('[data-chart]');
     if (btn && charts[btn.dataset.chart]) openChart(charts[btn.dataset.chart]);
@@ -251,6 +272,7 @@ export function initDossier() {
 export const isDossierOpen = () => !!elDossier && elDossier.classList.contains('show');
 
 export function openDossier(rec) {
+  currentRec = rec;
   const r = rec.row;
 
   if (rec.pending) {
@@ -290,6 +312,7 @@ export function openDossier(rec) {
   elDossier.innerHTML = `
     <div class="dossier-hero">
       <div class="glow"></div>
+      <button class="dossier-export" data-export title="Export this company to Excel"><i data-lucide="file-spreadsheet"></i><span>Export</span></button>
       <button class="modal-close" data-close aria-label="Close"><i data-lucide="x"></i></button>
       <div class="dossier-name">${esc(rec.name)}</div>
       <div class="dossier-tags">${sectorChip(rec.sector)}<span class="dossier-ind">${esc(rec.industry || '')}</span></div>

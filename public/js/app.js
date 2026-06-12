@@ -6,6 +6,7 @@ import { esc } from './format.js';
 import * as grid from './grid.js';
 import { initDossier, openDossier, closeDossier, isDossierOpen } from './dossier.js';
 import { isChartOpen, closeChart } from './chart.js';
+import { exportGrid } from './export.js';
 
 const N = (x) => {
   const v = Number(x);
@@ -213,6 +214,24 @@ function wire() {
   });
   $('clear-filters').addEventListener('click', resetFilters);
 
+  // Export current view (respects active filters + sort) to Excel.
+  $('export-grid').addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    const span = btn.querySelector('span');
+    const orig = span ? span.textContent : '';
+    btn.disabled = true;
+    if (span) span.textContent = 'Preparing…';
+    try {
+      await exportGrid(state.view || state.records, state.filters.sector || 'all');
+    } catch (err) {
+      console.error(err);
+      alert(`Export failed: ${err.message}`);
+    } finally {
+      btn.disabled = false;
+      if (span) span.textContent = orig;
+    }
+  });
+
   // Esc closes the chart first (if open), then the dossier.
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
@@ -266,6 +285,7 @@ function apply() {
   const f = state.filters;
   let view = state.records.filter((r) => matches(r, f));
   view = grid.sortRecords(view, state.sort.key, state.sort.dir);
+  state.view = view; // exposed for "Export to Excel"
 
   $('master-head').innerHTML = grid.headHtml(state.sort);
   $('master-body').innerHTML = grid.bodyHtml(view);

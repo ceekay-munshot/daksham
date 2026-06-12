@@ -337,3 +337,21 @@ table.master tbody tr:last-child td { border-bottom: none; }
   letter-spacing: 0.03em; color: #0f766e; background: #ccfbf1; padding: 1px 5px;
   border-radius: 5px; vertical-align: middle;
 }
+
+/* ── Export to Excel buttons ────────────────────────────────────────────────*/
+.btn-export {
+  display: inline-flex; align-items: center; gap: 7px; padding: 8px 14px;
+  border-radius: 10px; font-size: 13px; font-weight: 600; color: #0f766e;
+  background: #ccfbf1; transition: background 0.18s, opacity 0.18s; white-space: nowrap;
+}
+.btn-export:hover { background: #99f6e4; }
+.btn-export:disabled { opacity: 0.55; cursor: progress; }
+.btn-export i { width: 15px; height: 15px; }
+.dossier-export {
+  position: absolute; top: 18px; right: 64px; display: inline-flex; align-items: center;
+  gap: 6px; padding: 7px 12px; border-radius: 10px; font-size: 12.5px; font-weight: 600;
+  color: #fff; background: rgba(255, 255, 255, 0.16); transition: background 0.18s, opacity 0.18s;
+}
+.dossier-export:hover { background: rgba(255, 255, 255, 0.28); }
+.dossier-export:disabled { opacity: 0.6; cursor: progress; }
+.dossier-export i { width: 15px; height: 15px; }
