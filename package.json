@@ -14,7 +14,9 @@
     "extract:qualitative": "node scrapers/ai-extract.mjs",
     "evaluate": "node eval/run.mjs",
     "sync:eval": "cp eval/evaluate.mjs public/js/evaluate.mjs",
-    "test": "node --test \"scrapers/**/*.test.mjs\" \"eval/**/*.test.mjs\""
+    "test": "node --test \"scrapers/**/*.test.mjs\" \"eval/**/*.test.mjs\"",
+    "deploy": "wrangler deploy",
+    "preview": "wrangler dev"
   },
   "engines": {
     "node": ">=18"
@@ -23,5 +25,8 @@
     "cheerio": "^1.0.0",
     "pdf-parse": "^1.1.1",
     "playwright": "^1.49.0"
+  },
+  "devDependencies": {
+    "wrangler": "^4.100.0"
   }
 }
