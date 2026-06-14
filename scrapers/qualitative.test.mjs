@@ -123,6 +123,9 @@ test('pickProvider: key priority, overrides, and the no-key error', () => {
   // Groq only → its free Llama model
   assert.equal(pickProvider({ GROQ_API_KEY: 'gq' }).provider, 'groq');
   assert.equal(pickProvider({ GROQ_API_KEY: 'gq' }).model, 'llama-3.3-70b-versatile');
+  // Cerebras / Mistral — more free OpenAI-compatible providers
+  assert.equal(pickProvider({ CEREBRAS_API_KEY: 'c' }).provider, 'cerebras');
+  assert.equal(pickProvider({ MISTRAL_API_KEY: 'm' }).model, 'mistral-small-latest');
   // Gemini still wins over Groq when both are set (Groq is opt-in via PROVIDER=groq)
   assert.equal(pickProvider({ GEMINI_API_KEY: 'g', GROQ_API_KEY: 'gq' }).provider, 'gemini');
   // OpenAI only
@@ -146,6 +149,10 @@ test('availableProviders: pool of every key set; single when PROVIDER forced', (
   assert.deepEqual(both.map((p) => p.provider), ['gemini', 'groq']);
   assert.equal(both[0].model, 'gemini-2.5-flash-lite');
   assert.equal(both[1].model, 'llama-3.3-70b-versatile');
+  assert.deepEqual(
+    availableProviders({ GROQ_API_KEY: 'x', CEREBRAS_API_KEY: 'y', MISTRAL_API_KEY: 'z' }).map((p) => p.provider),
+    ['groq', 'cerebras', 'mistral']
+  );
   assert.deepEqual(availableProviders({ PROVIDER: 'groq', GROQ_API_KEY: 'gq' }).map((p) => p.provider), ['groq']);
   assert.throws(() => availableProviders({}), /No LLM API key set/);
 });

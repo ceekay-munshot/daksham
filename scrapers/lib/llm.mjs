@@ -104,9 +104,17 @@ async function callOpenAI({ model, apiKey, system, user, timeoutMs }) {
   return { parsed: parseStrict(text), usage: data.usage || null };
 }
 
-// ---- Groq (OpenAI-compatible, JSON mode; generous free tier) ---------------
-async function callGroq({ model, apiKey, system, user, timeoutMs }) {
-  const url = 'https://api.groq.com/openai/v1/chat/completions';
+// ---- OpenAI-compatible chat APIs (Groq / Cerebras / Mistral) ----------------
+// All expose the OpenAI /chat/completions shape with json_object mode; the schema
+// is enforced by the prompt + shapeVerdicts (which degrades bad fields to NA).
+// Every one of these has a FREE tier — hitting its limit returns 429, never bills.
+const COMPAT_URLS = {
+  groq: 'https://api.groq.com/openai/v1/chat/completions',
+  cerebras: 'https://api.cerebras.ai/v1/chat/completions',
+  mistral: 'https://api.mistral.ai/v1/chat/completions',
+};
+
+async function callOpenAICompat(provider, { model, apiKey, system, user, timeoutMs }) {
   const payload = {
     model,
     temperature: 0,
@@ -114,16 +122,16 @@ async function callGroq({ model, apiKey, system, user, timeoutMs }) {
       { role: 'system', content: system },
       { role: 'user', content: user },
     ],
-    response_format: { type: 'json_object' }, // schema enforced via the prompt + shapeVerdicts
+    response_format: { type: 'json_object' },
   };
-  const body = await fetchJSON(url, {
+  const body = await fetchJSON(COMPAT_URLS[provider], {
     method: 'POST',
     headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` },
     body: JSON.stringify(payload),
   }, timeoutMs);
   const data = parseStrict(body);
   const text = data?.choices?.[0]?.message?.content ?? '';
-  if (!text) throw new LLMError(`empty Groq response: ${body.slice(0, 200)}`, { parse: true });
+  if (!text) throw new LLMError(`empty ${provider} response: ${body.slice(0, 200)}`, { parse: true });
   return { parsed: parseStrict(text), usage: data.usage || null };
 }
 
@@ -183,7 +191,9 @@ export async function callLLM({ provider, model, apiKey, system, user, timeoutMs
     case 'gemini':
       return callGemini({ model, apiKey, system, user, timeoutMs });
     case 'groq':
-      return callGroq({ model, apiKey, system, user, timeoutMs });
+    case 'cerebras':
+    case 'mistral':
+      return callOpenAICompat(provider, { model, apiKey, system, user, timeoutMs });
     case 'openai':
       return callOpenAI({ model, apiKey, system, user, timeoutMs });
     case 'anthropic':
