@@ -101,6 +101,19 @@ function gatherDocs(manifest, slug) {
   return docs;
 }
 
+// A committed entry that should be RE-extracted rather than skipped: every param
+// is NA because of a model/parse failure (e.g. a provider returned the wrong JSON
+// shape), NOT because the company genuinely has no docs. Lets a re-run repair
+// garbage without FORCE-redoing the good ones.
+function isModelFailure(entry) {
+  const params = entry && entry.params;
+  if (!params) return false;
+  const vals = Object.values(params);
+  if (!vals.length || !vals.every((p) => p.verdict === 'NA')) return false;
+  if (entry.meta && entry.meta.docs_used === 0) return false; // genuine no-docs — keep as-is
+  return vals.some((p) => /not returned by model|extraction failed/i.test(p.note || ''));
+}
+
 // One attempt at a company with ONE provider. Returns a tagged outcome (never
 // throws), so the caller can fail over to another provider:
 //   { kind:'ok', params, usage } | { kind:'failed', params }  — provider responded
@@ -210,7 +223,7 @@ async function main() {
     const idx = cfg.startAt + i;
     const name = nameBySlug.get(slug) || slug;
 
-    if (!cfg.force && out.companies[slug]) {
+    if (!cfg.force && out.companies[slug] && !isModelFailure(out.companies[slug])) {
       log(`[${idx}] ${slug} — already done, skip (FORCE=1 to redo)`);
       continue;
     }
