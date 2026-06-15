@@ -152,17 +152,19 @@ function docLink(rec, period, type = 'transcript') {
   const d = (rec.docs || []).find((x) => x.type === type && x.period === period && x.source);
   return d ? d.source : '';
 }
-function sourceChips(rec) {
-  const docs = (rec.docs || []).filter((d) => d && d.source);
-  if (!docs.length) return '';
-  const chips = docs
-    .map((d) => {
-      const label = d.type === 'ppt' ? `Investor PPT ${d.period}` : `Concall ${d.period}`;
-      return `<a class="src-pill" href="${esc(d.source)}" target="_blank" rel="noopener" title="Open the source PDF">
-        <i data-lucide="file-text"></i>${esc(label)}<i data-lucide="external-link" class="src-pill-ext"></i></a>`;
-    })
-    .join('');
-  return `<div class="src-pills"><span class="src-pills-lbl">Sources</span>${chips}</div>`;
+// The source PDF to open for one read: the specific quarter's concall when known,
+// else the latest concall, else any doc, else the company's Screener documents.
+function primarySource(rec, period) {
+  if (period) { const u = docLink(rec, period); if (u) return { url: u, q: period }; }
+  const docs = (rec.docs || []).filter((d) => d.source);
+  const t = docs.filter((d) => d.type === 'transcript').sort((a, b) => String(b.period).localeCompare(String(a.period)))[0] || docs[0];
+  if (t) return { url: t.source, q: t.period };
+  return { url: `https://www.screener.in${(rec.row && rec.row.path) || ''}#documents`, q: '' };
+}
+// Per-row source icon → opens the exact document the read came from.
+function srcIcon(rec, period) {
+  const { url, q } = primarySource(rec, period);
+  return `<a class="row-src" href="${esc(url)}" target="_blank" rel="noopener" title="Open source — ${esc(q ? q + ' concall' : 'documents on Screener')}"><i data-lucide="file-text"></i></a>`;
 }
 
 function qualRow(p, rec) {
@@ -184,7 +186,7 @@ function qualRow(p, rec) {
   return `<div class="prow">
     <span class="prow-ic"><i data-lucide="${QUAL_ICONS[p.key] || 'sparkles'}"></i></span>
     <div class="prow-main">${main}</div>
-    <div class="prow-right">${qualPill(p)}</div>
+    <div class="prow-right">${qualPill(p)}${srcIcon(rec, p.source)}</div>
   </div>`;
 }
 
@@ -208,7 +210,7 @@ function qualHtml(rec) {
   const real = QUAL_ORDER.filter((k) => params[k] && params[k].verdict !== 'NA').length;
   const latest = rec.qual.meta && rec.qual.meta.source ? ` · latest ${esc(rec.qual.meta.source)}` : '';
   const rows = QUAL_ORDER.map((k) => qualRow(params[k], rec)).join('');
-  return `<div class="dsection">${head(`${real}/8 from management commentary${latest}`)}${rows}${sourceChips(rec)}</div>`;
+  return `<div class="dsection">${head(`${real}/8 from management commentary${latest}`)}${rows}</div>`;
 }
 
 // ── Moat & Qualitative · industry lens (Porter-style, trend-scored 0-5) ──────
@@ -230,7 +232,7 @@ function moatScore(f) {
   return `<span class="moat-cell ${cls}" title="${esc(f.trend)} trend · ${esc(f.confidence || '')} confidence">${arrow} ${f.score}/5</span>`;
 }
 
-function moatRow(factor) {
+function moatRow(factor, rec) {
   if (!factor) return '';
   const own = factor.own || {};
   const ind = factor.industry || {};
@@ -242,6 +244,7 @@ function moatRow(factor) {
       <div class="moat-scores"><span class="moat-tag">Own</span>${moatScore(own)}<span class="moat-tag">Industry</span>${moatScore(ind)}</div>
       ${note ? `<div class="prow-note">${esc(note)}</div>` : ''}
     </div>
+    <div class="prow-right">${srcIcon(rec)}</div>
   </div>`;
 }
 
@@ -260,9 +263,9 @@ function moatHtml(rec) {
         <div class="prow-right"><span class="pill pill-soon">Pending</span></div>
       </div></div>`;
   }
-  const rows = MOAT_ORDER.map((k) => moatRow(moat.factors[k])).join('');
-  return `<div class="dsection">${head(`${esc(moat.industry_name || '')} · own vs peers`)}${rows}${sourceChips(rec)}
-    <div class="moat-foot"><b>Own</b> from this company's concalls (linked above); <b>Industry</b> from ${esc(moat.industry_name || 'sector')} peers' concalls. Scored on TREND, 0–5, higher = more favorable; comparable within the industry only. Third-party news lens — coming next.</div>
+  const rows = MOAT_ORDER.map((k) => moatRow(moat.factors[k], rec)).join('');
+  return `<div class="dsection">${head(`${esc(moat.industry_name || '')} · own vs peers`)}${rows}
+    <div class="moat-foot"><b>Own</b> from this company's concalls (tap the source icon on each row); <b>Industry</b> from ${esc(moat.industry_name || 'sector')} peers' concalls. Scored on TREND, 0–5, higher = more favorable; comparable within the industry only. Third-party news lens — coming next.</div>
   </div>`;
 }
 
