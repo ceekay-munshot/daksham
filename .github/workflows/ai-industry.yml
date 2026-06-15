@@ -8,9 +8,9 @@ on:
   workflow_dispatch:
     inputs:
       industries:
-        description: "Comma-separated industry names (default = smoke). Blank = all."
+        description: "Comma-separated industry names. Blank (default) = ALL industries; type names for a smaller run."
         required: false
-        default: "Private Sector Bank,Housing Finance Company"
+        default: ""
       max_industries:
         description: "Cap when `industries` is blank (largest first). Blank = all."
         required: false
