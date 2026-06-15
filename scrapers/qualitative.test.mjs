@@ -16,7 +16,7 @@ import {
   RESPONSE_SCHEMA,
   PARAMS,
 } from './lib/qualitative.mjs';
-import { mockAnswer } from './lib/llm.mjs';
+import { mockFromSchema } from './lib/llm.mjs';
 
 const TRANSCRIPT = [
   'Management: Good morning everyone and welcome to the Q3 earnings call.',
@@ -177,8 +177,8 @@ test('toGeminiSchema strips additionalProperties but keeps enums/required', () =
   assert.ok(g.properties.order_book.required.includes('verdict'));
 });
 
-test('mockAnswer is schema-valid (verdicts within each param enum)', () => {
-  const ans = mockAnswer('Company: Test\nexcerpts');
+test('mockFromSchema is schema-valid (verdicts within each param enum)', () => {
+  const ans = mockFromSchema(RESPONSE_SCHEMA, 1);
   for (const p of PARAMS) {
     assert.ok(p.verdicts.includes(ans[p.key].verdict), `${p.key} verdict ${ans[p.key].verdict} in enum`);
     assert.ok(['high', 'medium', 'low'].includes(ans[p.key].confidence));

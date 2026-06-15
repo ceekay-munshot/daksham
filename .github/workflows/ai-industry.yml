@@ -1,0 +1,98 @@
+name: AI industry / moat lens
+
+# The "Moat & Qualitative" tier — Porter-style factors scored on a TREND, two
+# lenses (own-document per company + industry-peer per industry) on the free
+# round-robin. 100% free. Default is a 2-industry SMOKE TEST; clear `industries`
+# and set max_industries to scale up. Crash-resumable. (Third-party news = later.)
+on:
+  workflow_dispatch:
+    inputs:
+      industries:
+        description: "Comma-separated industry names (default = smoke). Blank = all."
+        required: false
+        default: "Private Sector Bank,Housing Finance Company"
+      max_industries:
+        description: "Cap when `industries` is blank (largest first). Blank = all."
+        required: false
+        default: ""
+      provider:
+        description: "Force a provider (blank = round-robin every key set)."
+        required: false
+        default: ""
+      model:
+        description: "Model id (single-provider only)."
+        required: false
+        default: ""
+      rpm:
+        description: "Requests/min throttle per provider."
+        required: false
+        default: "10"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ai-industry
+  cancel-in-progress: false
+
+jobs:
+  industry:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
+      MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Restore document corpus (read-only)
+        uses: actions/cache/restore@v4
+        with:
+          path: cache/docs
+          key: ai-industry-readonly-${{ github.run_id }}
+          restore-keys: |
+            docs-
+
+      - name: Ensure corpus present (cache or committed archive)
+        run: node scrapers/corpus-archive.mjs ensure
+
+      - name: Extract industry / moat lens
+        env:
+          INDUSTRIES: ${{ inputs.industries }}
+          MAX_INDUSTRIES: ${{ inputs.max_industries }}
+          PROVIDER: ${{ inputs.provider }}
+          MODEL: ${{ inputs.model }}
+          RPM: ${{ inputs.rpm }}
+        run: node scrapers/ai-industry.mjs
+
+      - name: Commit industry data
+        if: ${{ always() && github.ref_name == github.event.repository.default_branch }}
+        run: |
+          set -e
+          BR="${{ github.event.repository.default_branch }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/data/daksham-industry-lens.json public/data/daksham-industry.json
+          if git diff --cached --quiet; then
+            echo "No industry changes — nothing to commit."
+            exit 0
+          fi
+          git commit -m "AI industry / moat lens ($(date -u +%F))"
+          for i in 1 2 3 4; do
+            if git push origin "HEAD:$BR"; then echo "pushed"; exit 0; fi
+            echo "push attempt $i failed — fetching + rebasing, then retrying"
+            git fetch origin "$BR"
+            git rebase "origin/$BR"
+            sleep $((2 ** i))
+          done
+          echo "push failed after 4 attempts"; exit 1
