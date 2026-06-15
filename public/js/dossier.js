@@ -145,13 +145,40 @@ const QUAL_ICONS = {
   demand_anticipation: 'radar', capital_raised: 'banknote',
 };
 
-function qualRow(p) {
+// The exact source URL for a given quarter's document (from the harvest manifest),
+// and a chip-list of all the source PDFs an AI section was extracted from — so
+// every read links straight to where it came from.
+function docLink(rec, period, type = 'transcript') {
+  const d = (rec.docs || []).find((x) => x.type === type && x.period === period && x.source);
+  return d ? d.source : '';
+}
+function sourceChips(rec) {
+  const docs = (rec.docs || []).filter((d) => d && d.source);
+  if (!docs.length) return '';
+  const chips = docs
+    .map((d) => {
+      const label = d.type === 'ppt' ? `Investor PPT ${d.period}` : `Concall ${d.period}`;
+      return `<a class="src-pill" href="${esc(d.source)}" target="_blank" rel="noopener" title="Open the source PDF">
+        <i data-lucide="file-text"></i>${esc(label)}<i data-lucide="external-link" class="src-pill-ext"></i></a>`;
+    })
+    .join('');
+  return `<div class="src-pills"><span class="src-pills-lbl">Sources</span>${chips}</div>`;
+}
+
+function qualRow(p, rec) {
   if (!p) return '';
   let main = `<div class="prow-label">${esc(p.label)}</div>`;
   if (p.value) main += `<div class="prow-subval">${esc(String(p.value))}</div>`;
   if (p.note) main += `<div class="prow-note">${esc(p.note)}</div>`;
   const meta = [];
-  if (p.verdict !== 'NA' && p.source) meta.push(`<span class="qmeta-src">${esc(p.source)}</span>`);
+  if (p.verdict !== 'NA' && p.source) {
+    const url = docLink(rec, p.source);
+    meta.push(
+      url
+        ? `<a class="qmeta-src qmeta-link" href="${esc(url)}" target="_blank" rel="noopener" title="Open the ${esc(p.source)} concall">${esc(p.source)} ↗</a>`
+        : `<span class="qmeta-src">${esc(p.source)}</span>`
+    );
+  }
   if (p.verdict !== 'NA' && p.confidence) meta.push(`<span class="qmeta-conf qconf-${esc(p.confidence)}">${esc(p.confidence)} confidence</span>`);
   if (meta.length) main += `<div class="prow-meta">${meta.join('')}</div>`;
   return `<div class="prow">
@@ -180,12 +207,8 @@ function qualHtml(rec) {
   const params = rec.qual.params;
   const real = QUAL_ORDER.filter((k) => params[k] && params[k].verdict !== 'NA').length;
   const latest = rec.qual.meta && rec.qual.meta.source ? ` · latest ${esc(rec.qual.meta.source)}` : '';
-  const rows = QUAL_ORDER.map((k) => qualRow(params[k])).join('');
-  const src = `https://www.screener.in${rec.row.path || ''}#documents`;
-  const chip = `<a class="src-chip" style="margin-top:12px" href="${esc(src)}" target="_blank" rel="noopener">
-    <span class="src-ic"><i data-lucide="file-text"></i></span><span>Source: concalls &amp; investor PPT on <b>Screener.in</b></span><i data-lucide="external-link" class="src-ext"></i>
-  </a>`;
-  return `<div class="dsection">${head(`${real}/8 from management commentary${latest}`)}${rows}${chip}</div>`;
+  const rows = QUAL_ORDER.map((k) => qualRow(params[k], rec)).join('');
+  return `<div class="dsection">${head(`${real}/8 from management commentary${latest}`)}${rows}${sourceChips(rec)}</div>`;
 }
 
 // ── Moat & Qualitative · industry lens (Porter-style, trend-scored 0-5) ──────
@@ -238,8 +261,8 @@ function moatHtml(rec) {
       </div></div>`;
   }
   const rows = MOAT_ORDER.map((k) => moatRow(moat.factors[k])).join('');
-  return `<div class="dsection">${head(`${esc(moat.industry_name || '')} · own vs peers`)}${rows}
-    <div class="moat-foot">Scored on TREND, 0–5, higher = more favorable; comparable within ${esc(moat.industry_name || 'the industry')} only. Third-party news lens — coming next.</div>
+  return `<div class="dsection">${head(`${esc(moat.industry_name || '')} · own vs peers`)}${rows}${sourceChips(rec)}
+    <div class="moat-foot"><b>Own</b> from this company's concalls (linked above); <b>Industry</b> from ${esc(moat.industry_name || 'sector')} peers' concalls. Scored on TREND, 0–5, higher = more favorable; comparable within the industry only. Third-party news lens — coming next.</div>
   </div>`;
 }
 

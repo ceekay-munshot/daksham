@@ -40,8 +40,9 @@ async function load() {
   let universeMeta = {};
   let qual = null;
   let moat = null;
+  let docsManifest = null;
   try {
-    [companies, liquid, companiesMeta, universeMeta, qual, moat] = await Promise.all([
+    [companies, liquid, companiesMeta, universeMeta, qual, moat, docsManifest] = await Promise.all([
       fetch('data/daksham-companies.json').then((r) => {
         if (!r.ok) throw new Error('companies');
         return r.json();
@@ -51,6 +52,7 @@ async function load() {
       fetch('data/universe-metadata.json').then((r) => r.json()).catch(() => ({})),
       fetch('data/daksham-qualitative.json').then((r) => (r.ok ? r.json() : null)).catch(() => null),
       fetch('data/daksham-industry.json').then((r) => (r.ok ? r.json() : null)).catch(() => null),
+      fetch('data/docs-manifest.json').then((r) => (r.ok ? r.json() : null)).catch(() => null),
     ]);
   } catch (err) {
     return errorState();
@@ -72,6 +74,7 @@ async function load() {
   const moatBySlug = new Map();
   if (moat && moat.companies) for (const [slug, v] of Object.entries(moat.companies)) moatBySlug.set(slug, v);
   state.qualMeta = qual ? { generated_at: qual.generated_at, provider: qual.provider, model: qual.model, dry_run: qual.dry_run } : null;
+  const docs = docsManifest && typeof docsManifest === 'object' ? docsManifest : {};
 
   state.records = spine.map((row) => {
     const full = byPath.get(row.path);
@@ -81,6 +84,7 @@ async function load() {
     rec.qualReal = rec.qual ? Object.values(rec.qual.params).filter((p) => p.verdict !== 'NA').length : 0;
     const m = moatBySlug.get(rec.slug);
     rec.moat = m && m.factors ? m : null;
+    rec.docs = docs[rec.slug] || []; // [{type, period, source, ...}] for source links
     return rec;
   });
   state.bySlug = new Map(state.records.map((r) => [r.slug, r]));
