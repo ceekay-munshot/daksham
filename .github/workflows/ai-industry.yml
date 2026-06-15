@@ -27,6 +27,11 @@ on:
         description: "Requests/min throttle per provider."
         required: false
         default: "10"
+      force:
+        description: "Re-extract even already-done industries/companies (use to redo the smoke)."
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: write
@@ -73,6 +78,7 @@ jobs:
           PROVIDER: ${{ inputs.provider }}
           MODEL: ${{ inputs.model }}
           RPM: ${{ inputs.rpm }}
+          FORCE: ${{ inputs.force }}
         run: node scrapers/ai-industry.mjs
 
       - name: Commit industry data

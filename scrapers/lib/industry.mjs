@@ -101,13 +101,15 @@ export const SYSTEM_PROMPT =
   "You are an equity-research analyst assessing a company's competitive position (a Porter-style " +
   'moat read) from earnings-call commentary ONLY. For each factor, judge the TREND over the recent ' +
   'quarters shown — not a point-in-time level — and score it so HIGHER = MORE FAVORABLE for the ' +
-  'business. Use only the excerpts; if a factor is not discussed, set trend "NA". Scores are ' +
-  'comparable only within the same industry. Return ONLY a JSON object matching the schema.';
+  'business. Use only the excerpts. CRITICAL: if a factor is not actually discussed, set trend "NA" ' +
+  'and do NOT invent a score — absence of discussion is "NA", never "improving" or favorable. Scores ' +
+  'are comparable only within the same industry. Return ONLY a JSON object matching the schema.';
 
 const FIELD_RULES =
   `Factors (score the TREND, higher = more favorable):\n${FACTORS.map((f) => `- ${f.key}: improving = ${f.favorable}; worsening = the opposite.`).join('\n')}\n\n` +
   'Map trend → score: worsening → 0–2, stable → 2–3, improving → 4–5. Each factor returns ' +
-  '{score "0".."5", trend, note (one sentence citing the evidence), confidence}. trend "NA" if not discussed.';
+  '{score "0".."5", trend, note (one sentence citing the evidence), confidence}. If the excerpts do ' +
+  'not actually address a factor, return trend "NA" — never score a factor from the absence of discussion.';
 
 function jsonSkeleton() {
   return `{\n${FACTORS.map(
