@@ -35,9 +35,9 @@ const SECTIONS = [
     icon: 'trending-up',
     grad: 'linear-gradient(135deg,#a855f7,#7c3aed)',
     rows: [
-      { key: 'sales_cagr_3y', icon: 'trending-up' },
-      { key: 'gross_margin_latest', icon: 'percent' },
-      { key: 'gross_margin_3y_increase', icon: 'arrow-up-right' },
+      { key: 'sales_cagr_3y', icon: 'trending-up', src: 'profit-loss' },
+      { key: 'gross_margin_latest', icon: 'percent', src: 'profit-loss' },
+      { key: 'gross_margin_3y_increase', icon: 'arrow-up-right', src: 'profit-loss' },
       { key: 'yoy_sales_growth_12q', icon: 'line-chart', series: 'sales_qtr_series', unit: '₹ Cr', src: 'quarters', chart: 'Quarterly Sales' },
       { key: 'yoy_gross_margin_12q', icon: 'activity', transform: 'gm', series: 'material_cost_pct_qtr_series', unit: '%', src: 'quarters', chart: 'Quarterly Gross Margin' },
       { key: 'ebitda_gt_110_sales', icon: 'zap', transform: 'ebitda', unit: '₹ Cr', src: 'profit-loss', chart: 'Annual EBITDA' },
@@ -49,8 +49,8 @@ const SECTIONS = [
     grad: 'linear-gradient(135deg,#0ea5e9,#0284c7)',
     rows: [
       { key: 'cfo_rising_3y', icon: 'wallet', series: 'cfo_series', unit: '₹ Cr', src: 'cash-flow', chart: 'Operating Cash Flow' },
-      { key: 'sales_fa_below_0_8x', icon: 'factory' },
-      { key: 'sales_fa_vs_peers', icon: 'bar-chart-3' },
+      { key: 'sales_fa_below_0_8x', icon: 'factory', src: 'balance-sheet' },
+      { key: 'sales_fa_vs_peers', icon: 'bar-chart-3', src: 'peers' },
     ],
   },
   {
@@ -120,7 +120,7 @@ function paramRow(p, row, cfg, store) {
   return `<div class="prow">
     <span class="prow-ic"><i data-lucide="${cfg.icon || 'circle'}"></i></span>
     <div class="prow-main">${main}</div>
-    <div class="prow-right">${right}</div>
+    <div class="prow-right">${right}${screenerIcon(row && row.path, cfg.src)}</div>
   </div>`;
 }
 
@@ -145,9 +145,29 @@ const QUAL_ICONS = {
   demand_anticipation: 'radar', capital_raised: 'banknote',
 };
 
-// The exact source URL for a given quarter's document (from the harvest manifest),
-// and a chip-list of all the source PDFs an AI section was extracted from — so
-// every read links straight to where it came from.
+// Every row links straight to where it came from. Two source kinds:
+//  • Screener.in (all the quantitative / fundamental data) — a bar-chart icon to
+//    the company page at the exact section anchor (P&L, cash-flow, shareholding…).
+//  • A concall / investor-PPT PDF (the AI reads) — a file-text icon to that PDF.
+const srcLink = (url, title, icon) =>
+  `<a class="row-src" href="${esc(url)}" target="_blank" rel="noopener" title="${esc(title)}"><i data-lucide="${icon}"></i></a>`;
+
+const screenerUrl = (path, anchor) =>
+  `https://www.screener.in${path || ''}${anchor ? `#${anchor}` : ''}`;
+
+// Human label for each Screener section anchor (blank = the top-of-page ratios).
+const SRC_LABEL = {
+  '': 'company ratios', 'profit-loss': 'P&L statement', quarters: 'quarterly results',
+  'cash-flow': 'cash-flow statement', 'balance-sheet': 'balance sheet',
+  shareholding: 'shareholding pattern', peers: 'peer comparison', ratios: 'ratios',
+};
+// Screener source icon for a quantitative row, pointed at its section.
+function screenerIcon(path, anchor = '') {
+  const label = SRC_LABEL[anchor] || 'company data';
+  return srcLink(screenerUrl(path, anchor), `Open source — ${label} on Screener.in`, 'bar-chart-3');
+}
+
+// The exact source URL for a given quarter's document (from the harvest manifest).
 function docLink(rec, period, type = 'transcript') {
   const d = (rec.docs || []).find((x) => x.type === type && x.period === period && x.source);
   return d ? d.source : '';
@@ -159,12 +179,12 @@ function primarySource(rec, period) {
   const docs = (rec.docs || []).filter((d) => d.source);
   const t = docs.filter((d) => d.type === 'transcript').sort((a, b) => String(b.period).localeCompare(String(a.period)))[0] || docs[0];
   if (t) return { url: t.source, q: t.period };
-  return { url: `https://www.screener.in${(rec.row && rec.row.path) || ''}#documents`, q: '' };
+  return { url: screenerUrl(rec.row && rec.row.path, 'documents'), q: '' };
 }
 // Per-row source icon → opens the exact document the read came from.
 function srcIcon(rec, period) {
   const { url, q } = primarySource(rec, period);
-  return `<a class="row-src" href="${esc(url)}" target="_blank" rel="noopener" title="Open source — ${esc(q ? q + ' concall' : 'documents on Screener')}"><i data-lucide="file-text"></i></a>`;
+  return srcLink(url, `Open source — ${q ? q + ' concall' : 'documents on Screener'}`, 'file-text');
 }
 
 function qualRow(p, rec) {
@@ -292,6 +312,11 @@ function heroSignals(params) {
   </div>`;
 }
 
+// Hero source — the headline figures (market cap, CMP, EV/EBITDA, ratios) all
+// come from the company's Screener page; link straight to it.
+const heroSrc = (r) =>
+  `<a class="hero-src" href="${esc(screenerUrl(r && r.path, ''))}" target="_blank" rel="noopener" title="Market cap, price &amp; ratios — from Screener.in"><i data-lucide="bar-chart-3"></i><span>Source · Screener.in</span><i data-lucide="external-link" class="hs-ext"></i></a>`;
+
 let elDossier;
 let elOverlay;
 let charts = {};
@@ -350,6 +375,7 @@ export function openDossier(rec) {
           <div><div class="dossier-stat-num">${mult(rec.evEbitda)}</div><div class="dossier-stat-lbl">EV / EBITDA</div></div>
           <div><div class="dossier-stat-num">${rec.adtv != null ? `₹${rec.adtv.toFixed(1)} Cr` : '—'}</div><div class="dossier-stat-lbl">ADV · 30d</div></div>
         </div>
+        ${heroSrc(r)}
       </div>
       <div class="dossier-body">
         <div class="pending-card">
@@ -383,6 +409,7 @@ export function openDossier(rec) {
         <div><div class="dossier-stat-num" style="text-transform:capitalize">${esc(r.financials_view || '—')}</div><div class="dossier-stat-lbl">Statements</div></div>
       </div>
       ${heroSignals(rec.params)}
+      ${heroSrc(r)}
     </div>
     <div class="dossier-body">${body}</div>`;
 
