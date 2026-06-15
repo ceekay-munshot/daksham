@@ -10,6 +10,7 @@ import {
   pickProvider,
   availableProviders,
   nextProvider,
+  isStaleSource,
   estimateTokens,
   toGeminiSchema,
   RESPONSE_SCHEMA,
@@ -186,4 +187,12 @@ test('mockAnswer is schema-valid (verdicts within each param enum)', () => {
 
 test('estimateTokens ~ chars/4', () => {
   assert.equal(estimateTokens('abcd'.repeat(10)), 10);
+});
+
+test('isStaleSource: true only when a newer transcript exists', () => {
+  assert.equal(isStaleSource('2025-08', '2026-02'), true); // newer concall → refresh
+  assert.equal(isStaleSource('2026-02', '2026-02'), false); // same quarter
+  assert.equal(isStaleSource('2026-05', '2026-02'), false); // manifest not newer
+  assert.equal(isStaleSource('', '2026-02'), false); // no recorded source
+  assert.equal(isStaleSource('2026-02', ''), false); // no transcripts
 });

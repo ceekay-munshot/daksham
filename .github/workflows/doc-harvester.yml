@@ -2,8 +2,10 @@ name: Document harvester
 
 # Foundation of the qualitative tier — collects concall transcripts + investor
 # PPTs from Screener's Documents section, caches the text, and commits the small
-# manifest. Manual-only. Default is a 15-name SMOKE TEST; raise max_companies to
-# scale up. (The AI-extraction routine will run after this in the same workflow.)
+# manifest. Manual default is a 15-name SMOKE TEST; raise max_companies to scale up.
+# A WEEKLY schedule re-checks every company for new docs (cached ones are skipped,
+# only new transcripts/PPTs download), refreshing the manifest + corpus — then the
+# AI extraction re-reads any company whose latest transcript is newer.
 on:
   workflow_dispatch:
     inputs:
@@ -20,6 +22,10 @@ on:
         type: boolean
         required: false
         default: false
+  # Weekly full refresh (no inputs → MAX_COMPANIES empty → all companies). Mostly
+  # cache hits, so it just checks for and downloads new docs.
+  schedule:
+    - cron: "0 3 * * 1"
 
 permissions:
   contents: write

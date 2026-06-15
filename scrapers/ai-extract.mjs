@@ -25,6 +25,7 @@ import {
   naAllParams,
   availableProviders,
   nextProvider,
+  isStaleSource,
   estimateTokens,
   SYSTEM_PROMPT,
   PARAMS,
@@ -112,6 +113,15 @@ function isModelFailure(entry) {
   if (!vals.length || !vals.every((p) => p.verdict === 'NA')) return false;
   if (entry.meta && entry.meta.docs_used === 0) return false; // genuine no-docs — keep as-is
   return vals.some((p) => /not returned by model|extraction failed/i.test(p.note || ''));
+}
+
+// Newest concall quarter available for a company (manifest periods are "YYYY-MM").
+function latestTranscriptPeriod(manifest, slug) {
+  let latest = '';
+  for (const e of manifest[slug] || []) {
+    if (e.type === 'transcript' && e.period && e.period > latest) latest = e.period;
+  }
+  return latest;
 }
 
 // One attempt at a company with ONE provider. Returns a tagged outcome (never
@@ -223,10 +233,14 @@ async function main() {
     const idx = cfg.startAt + i;
     const name = nameBySlug.get(slug) || slug;
 
-    if (!cfg.force && out.companies[slug] && !isModelFailure(out.companies[slug])) {
+    const done = out.companies[slug];
+    const newest = latestTranscriptPeriod(manifest, slug);
+    const stale = done && isStaleSource(done.meta && done.meta.source, newest);
+    if (!cfg.force && done && !isModelFailure(done) && !stale) {
       log(`[${idx}] ${slug} — already done, skip (FORCE=1 to redo)`);
       continue;
     }
+    if (stale) log(`[${idx}] ${slug} — newer transcript ${newest} > ${done.meta.source} → refreshing`);
 
     const docs = gatherDocs(manifest, slug);
     const { text, sourceQuarter, docsUsed, charsIn } = buildInput(docs, { maxChars: cfg.maxInputChars });
