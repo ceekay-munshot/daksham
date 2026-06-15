@@ -188,24 +188,58 @@ function qualHtml(rec) {
   return `<div class="dsection">${head(`${real}/8 from management commentary${latest}`)}${rows}${chip}</div>`;
 }
 
-function moatHtml(rec) {
-  const deferred = Object.values(rec.params).filter((p) => p.output_type === 'deferred');
-  const rows = deferred
-    .map(
-      (p) => `<div class="prow">
-        <span class="prow-ic"><i data-lucide="sparkles"></i></span>
-        <div class="prow-main"><div class="prow-label">${esc(p.label)}</div><div class="prow-note">${esc(p.note)}</div></div>
-        <div class="prow-right">${pill(p)}</div>
-      </div>`
-    )
-    .join('');
-  return `<div class="dsection">
-    <div class="dsection-head">
-      <span class="sec-ic" style="--sec-grad:linear-gradient(135deg,#64748b,#475569)"><i data-lucide="shield"></i></span>
-      <span class="dsection-title">Moat &amp; Qualitative</span>
-      <span class="dsection-sub">${deferred.length} on the roadmap</span>
+// ── Moat & Qualitative · industry lens (Porter-style, trend-scored 0-5) ──────
+const MOAT_ORDER = [
+  'competition', 'barriers_to_entry', 'buyer_power', 'supplier_power',
+  'substitution_risk', 'china_imports', 'govt_regulation', 'inventory_buildup',
+];
+const MOAT_ICONS = {
+  competition: 'swords', barriers_to_entry: 'shield-check', buyer_power: 'shopping-cart',
+  supplier_power: 'truck', substitution_risk: 'repeat', china_imports: 'ship',
+  govt_regulation: 'landmark', inventory_buildup: 'package',
+};
+
+// 0-5 score chip (higher = more favorable) with a trend arrow; NA when not discussed.
+function moatScore(f) {
+  if (!f || f.trend === 'NA' || f.score == null) return '<span class="moat-cell moat-na">N/A</span>';
+  const cls = f.score >= 4 ? 'ms-good' : f.score >= 2 ? 'ms-mid' : 'ms-bad';
+  const arrow = { improving: '↑', stable: '→', worsening: '↓' }[f.trend] || '';
+  return `<span class="moat-cell ${cls}" title="${esc(f.trend)} trend · ${esc(f.confidence || '')} confidence">${arrow} ${f.score}/5</span>`;
+}
+
+function moatRow(factor) {
+  if (!factor) return '';
+  const own = factor.own || {};
+  const ind = factor.industry || {};
+  const note = own.trend && own.trend !== 'NA' && own.note ? own.note : ind.note || '';
+  return `<div class="prow">
+    <span class="prow-ic"><i data-lucide="${MOAT_ICONS[factor.key] || 'shield'}"></i></span>
+    <div class="prow-main">
+      <div class="prow-label">${esc(factor.label)}</div>
+      <div class="moat-scores"><span class="moat-tag">Own</span>${moatScore(own)}<span class="moat-tag">Industry</span>${moatScore(ind)}</div>
+      ${note ? `<div class="prow-note">${esc(note)}</div>` : ''}
     </div>
-    ${rows}
+  </div>`;
+}
+
+function moatHtml(rec) {
+  const moat = rec.moat;
+  const head = (sub) => `<div class="dsection-head">
+    <span class="sec-ic" style="--sec-grad:linear-gradient(135deg,#64748b,#475569)"><i data-lucide="shield"></i></span>
+    <span class="dsection-title">Moat &amp; Qualitative · industry lens</span>
+    <span class="dsection-sub">${sub}</span>
+  </div>`;
+  if (!moat || !moat.factors) {
+    return `<div class="dsection">${head('AI lens pending')}
+      <div class="prow">
+        <span class="prow-ic"><i data-lucide="hourglass"></i></span>
+        <div class="prow-main"><div class="prow-note">Industry / moat factors not yet extracted — run the AI industry / moat lens workflow.</div></div>
+        <div class="prow-right"><span class="pill pill-soon">Pending</span></div>
+      </div></div>`;
+  }
+  const rows = MOAT_ORDER.map((k) => moatRow(moat.factors[k])).join('');
+  return `<div class="dsection">${head(`${esc(moat.industry_name || '')} · own vs peers`)}${rows}
+    <div class="moat-foot">Scored on TREND, 0–5, higher = more favorable; comparable within ${esc(moat.industry_name || 'the industry')} only. Third-party news lens — coming next.</div>
   </div>`;
 }
 

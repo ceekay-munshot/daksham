@@ -39,8 +39,9 @@ async function load() {
   let companiesMeta = {};
   let universeMeta = {};
   let qual = null;
+  let moat = null;
   try {
-    [companies, liquid, companiesMeta, universeMeta, qual] = await Promise.all([
+    [companies, liquid, companiesMeta, universeMeta, qual, moat] = await Promise.all([
       fetch('data/daksham-companies.json').then((r) => {
         if (!r.ok) throw new Error('companies');
         return r.json();
@@ -49,6 +50,7 @@ async function load() {
       fetch('data/companies-metadata.json').then((r) => r.json()).catch(() => ({})),
       fetch('data/universe-metadata.json').then((r) => r.json()).catch(() => ({})),
       fetch('data/daksham-qualitative.json').then((r) => (r.ok ? r.json() : null)).catch(() => null),
+      fetch('data/daksham-industry.json').then((r) => (r.ok ? r.json() : null)).catch(() => null),
     ]);
   } catch (err) {
     return errorState();
@@ -63,9 +65,12 @@ async function load() {
   const byPath = new Map(companies.map((c) => [c.path, c]));
   const spine = Array.isArray(liquid) && liquid.length ? liquid : companies;
 
-  // AI qualitative cluster (own-document lens) — a separate file, joined by slug.
+  // AI qualitative cluster (own-document lens) + industry/moat lens — separate
+  // files, joined by slug.
   const qualBySlug = new Map();
   if (qual && qual.companies) for (const [slug, v] of Object.entries(qual.companies)) qualBySlug.set(slug, v);
+  const moatBySlug = new Map();
+  if (moat && moat.companies) for (const [slug, v] of Object.entries(moat.companies)) moatBySlug.set(slug, v);
   state.qualMeta = qual ? { generated_at: qual.generated_at, provider: qual.provider, model: qual.model, dry_run: qual.dry_run } : null;
 
   state.records = spine.map((row) => {
@@ -74,6 +79,8 @@ async function load() {
     const q = qualBySlug.get(rec.slug);
     rec.qual = q && q.params ? q : null;
     rec.qualReal = rec.qual ? Object.values(rec.qual.params).filter((p) => p.verdict !== 'NA').length : 0;
+    const m = moatBySlug.get(rec.slug);
+    rec.moat = m && m.factors ? m : null;
     return rec;
   });
   state.bySlug = new Map(state.records.map((r) => [r.slug, r]));

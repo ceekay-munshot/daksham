@@ -32,6 +32,10 @@ on:
         type: boolean
         required: false
         default: false
+  # Weekly full run (no inputs → all industries; crash-resumable, skips done) so the
+  # moat lens completes and stays current. Mondays 05:00 UTC, after the doc harvest.
+  schedule:
+    - cron: "0 5 * * 1"
 
 permissions:
   contents: write
