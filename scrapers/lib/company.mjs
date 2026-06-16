@@ -127,6 +127,15 @@ const lastOf = (series) => {
   return a[a.length - 1];
 };
 
+// Latest period label from a section's header row (newest column), optionally
+// skipping a trailing TTM. "" when the section/headers are absent.
+const lastPeriod = (parsed, { dropTtm = false } = {}) => {
+  if (!parsed || !parsed.periods || !parsed.periods.length) return '';
+  let ps = parsed.periods;
+  if (dropTtm) ps = ps.filter((p) => !/ttm/i.test(p || ''));
+  return ps.length ? ps[ps.length - 1] : '';
+};
+
 function detectView($) {
   const text = $.root().text();
   if (/consolidated\s+figures/i.test(text)) return 'consolidated';
@@ -180,6 +189,12 @@ export function parseCompanyPage(html, { url } = {}) {
   const net_block_series = seriesValues(bs, findRow(bs, /net block/, /fixed assets/));
   const inventory_series = seriesValues(bs, findRow(bs, /inventor/));
 
+  // Latest period each table reports — the honest "as of" per metric axis:
+  // quarterly results, annual FY (skip TTM), and the shareholding quarter.
+  const latest_quarter = lastPeriod(quarters);
+  const latest_fy = lastPeriod(pl, { dropTtm: true });
+  const shareholding_quarter = lastPeriod(sh);
+
   // Shareholding (last 8 quarters).
   const promoter_holding_series = seriesValues(sh, findRow(sh, /promoter/), { last: 8 });
   const fii_holding_series = seriesValues(sh, findRow(sh, /fii|foreign/), { last: 8 });
@@ -225,6 +240,10 @@ export function parseCompanyPage(html, { url } = {}) {
     sales_cagr_3y: compounded.sales_cagr_3y ?? '',
     sales_cagr_5y: compounded.sales_cagr_5y ?? '',
     sales_cagr_ttm: compounded.sales_cagr_ttm ?? '',
+
+    latest_quarter,
+    latest_fy,
+    shareholding_quarter,
 
     sales_qtr_series,
     material_cost_pct_qtr_series,

@@ -109,6 +109,13 @@ test('parseCompanyPage: annual P&L series drop the TTM column', () => {
   assert.equal(c.material_cost_pct_annual_series, '45|44|43'); // expanded sub-row, TTM dropped
 });
 
+test('parseCompanyPage: latest period labels per axis (the "as of" stamps)', () => {
+  const c = parseCompanyPage(FIXTURE);
+  assert.equal(c.latest_quarter, 'Jun 2024'); // newest quarterly column
+  assert.equal(c.latest_fy, 'Mar 2024'); // newest annual column, TTM skipped
+  assert.equal(c.shareholding_quarter, 'Mar 2024'); // newest shareholding column
+});
+
 test('parseCompanyPage: cash flow + balance sheet series', () => {
   const c = parseCompanyPage(FIXTURE);
   assert.equal(c.cfo_series, '200|210|220');

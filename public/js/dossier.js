@@ -125,15 +125,44 @@ function paramRow(p, row, cfg, store) {
 }
 
 function sectionHtml(sec, rec, store) {
-  const asOf = asOfLabel(rec);
+  const sub = sectionSub(sec, rec.row, asOfLabel(rec));
   return `<div class="dsection">
     <div class="dsection-head">
       <span class="sec-ic" style="--sec-grad:${sec.grad}"><i data-lucide="${sec.icon}"></i></span>
       <span class="dsection-title">${sec.title}</span>
-      ${asOf ? `<span class="dsection-sub" title="Screener snapshot date — point-in-time pull">as of ${esc(asOf)}</span>` : ''}
+      ${sub ? `<span class="dsection-sub" title="Period each metric is as of — from its Screener table; live ratios as of the snapshot pull">${esc(sub)}</span>` : ''}
     </div>
     ${sec.rows.map((cfg) => paramRow(rec.params[cfg.key], rec.row, cfg, store)).join('')}
   </div>`;
+}
+
+// What period a metric is "as of", by the Screener table it comes from. Live
+// ratios (no source table) fall back to the snapshot-pull date.
+function rowAsOfInfo(cfg, row, snap) {
+  const r = row || {};
+  switch (cfg.src) {
+    case 'quarters': return { period: r.latest_quarter || '', kind: 'quarterly' };
+    case 'shareholding': return { period: r.shareholding_quarter || r.latest_quarter || '', kind: 'quarterly' };
+    case 'profit-loss':
+    case 'cash-flow':
+    case 'balance-sheet':
+    case 'peers': return { period: r.latest_fy || '', kind: 'annual' };
+    default: return { period: snap, kind: 'live' }; // valuation ratios — live snapshot
+  }
+}
+
+// One "as of" stamp per section: a single period when uniform, else the distinct
+// periods tagged by axis (the growth section mixes annual + quarterly). Degrades
+// to the snapshot date before a period-aware re-crawl populates the labels.
+function sectionSub(sec, row, snap) {
+  const buckets = new Map(); // period -> kind, first-seen order
+  for (const cfg of sec.rows) {
+    const { period, kind } = rowAsOfInfo(cfg, row, snap);
+    if (period && !buckets.has(period)) buckets.set(period, kind);
+  }
+  if (!buckets.size) return snap ? `as of ${snap}` : '';
+  if (buckets.size === 1) return `as of ${[...buckets.keys()][0]}`;
+  return [...buckets.entries()].map(([p, k]) => `${k} ${p}`).join(' · ');
 }
 
 // ── Qualitative · own-document lens (AI extraction) ──────────────────────────
