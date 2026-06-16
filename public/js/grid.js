@@ -21,7 +21,7 @@ export function headHtml(sort) {
   return `<tr>${COLS.map((c) => {
     const sorted = sort.key === c.key;
     const ic = sorted ? (sort.dir === 'asc' ? 'chevron-up' : 'chevron-down') : 'chevrons-up-down';
-    return `<th class="${c.cls}${sorted ? ' sorted' : ''}" data-key="${c.key}" title="Sort by ${esc(c.label)}">
+    return `<th class="${c.cls}${sorted ? ' sorted' : ''}" data-key="${c.key}" tabindex="0" role="button" aria-label="Sort by ${esc(c.label)}" title="Sort by ${esc(c.label)}">
       <span class="th-inner">${esc(c.label)}<i data-lucide="${ic}" class="sort-ic"></i></span></th>`;
   }).join('')}</tr>`;
 }
@@ -53,7 +53,7 @@ function signalsCell(rec) {
 
 function rowHtml(rec, i) {
   const n = (v, f) => (v == null ? muted : f(v));
-  return `<tr data-slug="${esc(rec.slug)}" style="animation-delay:${Math.min(i, 24) * 12}ms">
+  return `<tr data-slug="${esc(rec.slug)}" tabindex="0" role="button" aria-label="Open ${esc(rec.name)} details" style="animation-delay:${Math.min(i, 24) * 12}ms">
     <td>
       <div class="co-cell">
         <span class="co-rank hide-sm">${i + 1}</span>

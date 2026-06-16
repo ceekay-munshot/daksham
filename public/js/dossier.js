@@ -111,7 +111,7 @@ function paramRow(p, row, cfg, store) {
           url: `https://www.screener.in${row.path || ''}${cfg.src ? `#${cfg.src}` : ''}`,
         },
       };
-      trend = `<button class="trend-btn" data-chart="${id}" title="Open trend chart">
+      trend = `<button class="trend-btn" data-chart="${id}" aria-label="Open ${esc(p.label)} trend chart" title="Open trend chart">
         ${sparkline(vals, { w: 72, h: 26 })}<span class="trend-ic"><i data-lucide="expand"></i></span></button>`;
     }
   }
@@ -125,10 +125,12 @@ function paramRow(p, row, cfg, store) {
 }
 
 function sectionHtml(sec, rec, store) {
+  const asOf = asOfLabel(rec);
   return `<div class="dsection">
     <div class="dsection-head">
       <span class="sec-ic" style="--sec-grad:${sec.grad}"><i data-lucide="${sec.icon}"></i></span>
       <span class="dsection-title">${sec.title}</span>
+      ${asOf ? `<span class="dsection-sub" title="Screener snapshot date — point-in-time pull">as of ${esc(asOf)}</span>` : ''}
     </div>
     ${sec.rows.map((cfg) => paramRow(rec.params[cfg.key], rec.row, cfg, store)).join('')}
   </div>`;
@@ -150,7 +152,15 @@ const QUAL_ICONS = {
 //    the company page at the exact section anchor (P&L, cash-flow, shareholding…).
 //  • A concall / investor-PPT PDF (the AI reads) — a file-text icon to that PDF.
 const srcLink = (url, title, icon) =>
-  `<a class="row-src" href="${esc(url)}" target="_blank" rel="noopener" title="${esc(title)}"><i data-lucide="${icon}"></i></a>`;
+  `<a class="row-src" href="${esc(url)}" target="_blank" rel="noopener" aria-label="${esc(title)}" title="${esc(title)}"><i data-lucide="${icon}"></i></a>`;
+
+// Screener is a point-in-time pull — show the crawl-snapshot date as the "as of".
+function asOfLabel(rec) {
+  const ts = rec && rec.asOf;
+  if (!ts) return '';
+  const d = new Date(ts);
+  return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+}
 
 const screenerUrl = (path, anchor) =>
   `https://www.screener.in${path || ''}${anchor ? `#${anchor}` : ''}`;
@@ -313,9 +323,14 @@ function heroSignals(params) {
 }
 
 // Hero source — the headline figures (market cap, CMP, EV/EBITDA, ratios) all
-// come from the company's Screener page; link straight to it.
-const heroSrc = (r) =>
-  `<a class="hero-src" href="${esc(screenerUrl(r && r.path, ''))}" target="_blank" rel="noopener" title="Market cap, price &amp; ratios — from Screener.in"><i data-lucide="bar-chart-3"></i><span>Source · Screener.in</span><i data-lucide="external-link" class="hs-ext"></i></a>`;
+// come from the company's Screener page; link straight to it, stamped with the
+// snapshot date so the reader sees both where and when.
+const heroSrc = (rec) => {
+  const path = rec && rec.row && rec.row.path;
+  const asOf = asOfLabel(rec);
+  const stamp = asOf ? ` · ${esc(asOf)}` : '';
+  return `<a class="hero-src" href="${esc(screenerUrl(path, ''))}" target="_blank" rel="noopener" aria-label="Market cap, price and ratios from Screener.in${asOf ? ', as of ' + esc(asOf) : ''}" title="Market cap, price &amp; ratios — Screener.in snapshot${asOf ? ', ' + esc(asOf) : ''}"><i data-lucide="bar-chart-3"></i><span>Source · Screener.in${stamp}</span><i data-lucide="external-link" class="hs-ext"></i></a>`;
+};
 
 let elDossier;
 let elOverlay;
@@ -375,7 +390,7 @@ export function openDossier(rec) {
           <div><div class="dossier-stat-num">${mult(rec.evEbitda)}</div><div class="dossier-stat-lbl">EV / EBITDA</div></div>
           <div><div class="dossier-stat-num">${rec.adtv != null ? `₹${rec.adtv.toFixed(1)} Cr` : '—'}</div><div class="dossier-stat-lbl">ADV · 30d</div></div>
         </div>
-        ${heroSrc(r)}
+        ${heroSrc(rec)}
       </div>
       <div class="dossier-body">
         <div class="pending-card">
@@ -409,7 +424,7 @@ export function openDossier(rec) {
         <div><div class="dossier-stat-num" style="text-transform:capitalize">${esc(r.financials_view || '—')}</div><div class="dossier-stat-lbl">Statements</div></div>
       </div>
       ${heroSignals(rec.params)}
-      ${heroSrc(r)}
+      ${heroSrc(rec)}
     </div>
     <div class="dossier-body">${body}</div>`;
 

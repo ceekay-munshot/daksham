@@ -172,11 +172,13 @@ table.master tbody tr:last-child td { border-bottom: none; }
 .signals { display: inline-flex; align-items: center; gap: 10px; justify-content: flex-end; }
 .signals-count { font-family: 'Sora', sans-serif; font-weight: 700; font-size: 15px; color: var(--ink); }
 .signals-den { font-size: 11px; color: #aab2c2; font-weight: 600; }
-.signals-dots { display: inline-flex; gap: 3px; }
-.sdot { width: 7px; height: 7px; border-radius: 2px; }
-.dot-pass { background: var(--pass); }
-.dot-fail { background: #fda4b4; }
-.dot-na { background: #dfe3ea; }
+.signals-dots { display: inline-flex; align-items: center; gap: 3px; }
+/* Shape-coded so the signal survives colour-blindness: PASS = square, FAIL =
+   circle, N/A = small hollow circle — never colour alone. */
+.sdot { width: 8px; height: 8px; flex-shrink: 0; }
+.dot-pass { background: var(--pass); border-radius: 2px; }
+.dot-fail { background: var(--fail); border-radius: 999px; }
+.dot-na { width: 6px; height: 6px; background: transparent; border: 1.5px solid #cbd2de; border-radius: 999px; }
 
 .pill { display: inline-flex; align-items: center; padding: 3px 9px; font-size: 11px; font-weight: 700; border-radius: 999px; letter-spacing: 0.02em; white-space: nowrap; }
 .pill-pass { background: #dcfce7; color: #047857; }
@@ -388,3 +390,16 @@ table.master tbody tr:last-child td { border-bottom: none; }
 .hero-src:hover { background: rgba(255, 255, 255, 0.22); color: #fff; }
 .hero-src i { width: 13px; height: 13px; }
 .hero-src .hs-ext { opacity: 0.6; }
+
+/* ── Keyboard focus rings (a11y) — visible only for keyboard users ──────────*/
+table.master tbody tr:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; background: #f6f7fe; }
+table.master thead th:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; color: var(--brand); }
+.seg:focus-visible, .trend-btn:focus-visible, .row-src:focus-visible, .btn-export:focus-visible,
+.btn-ghost:focus-visible, .src-chip:focus-visible, .qmeta-link:focus-visible,
+.fchip button:focus-visible, .modal-close:focus-visible {
+  outline: 2px solid var(--brand); outline-offset: 2px;
+}
+/* On the dark hero, a white ring reads better than indigo. */
+.dossier-export:focus-visible, .dossier-hero .modal-close:focus-visible, .hero-src:focus-visible {
+  outline: 2px solid #fff; outline-offset: 2px;
+}

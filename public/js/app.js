@@ -85,6 +85,7 @@ async function load() {
     const m = moatBySlug.get(rec.slug);
     rec.moat = m && m.factors ? m : null;
     rec.docs = docs[rec.slug] || []; // [{type, period, source, ...}] for source links
+    rec.asOf = companiesMeta && companiesMeta.generated_at; // Screener snapshot date (quantitative tier)
     return rec;
   });
   state.bySlug = new Map(state.records.map((r) => [r.slug, r]));
@@ -260,10 +261,27 @@ function wire() {
     else state.sort = { key, dir: col && col.type === 'str' ? 'asc' : 'desc' };
     apply();
   });
+  // keyboard: Enter / Space activates a focused sort header
+  $('master-head').addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const th = e.target.closest('th[data-key]');
+    if (!th) return;
+    e.preventDefault();
+    th.click();
+  });
   // delegated: open dossier on row click
   $('master-body').addEventListener('click', (e) => {
     const tr = e.target.closest('tr[data-slug]');
     if (!tr) return;
+    const rec = state.bySlug.get(tr.dataset.slug);
+    if (rec) openDossier(rec);
+  });
+  // keyboard: Enter / Space opens the focused company row
+  $('master-body').addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const tr = e.target.closest('tr[data-slug]');
+    if (!tr) return;
+    e.preventDefault();
     const rec = state.bySlug.get(tr.dataset.slug);
     if (rec) openDossier(rec);
   });
