@@ -267,6 +267,24 @@ function qualHtml(rec) {
 
   const params = rec.qual.params;
   const real = QUAL_ORDER.filter((k) => params[k] && params[k].verdict !== 'NA').length;
+
+  // Nothing surfaced — say WHY honestly (nothing filed / scanned-only / genuinely
+  // not discussed) instead of eight bare "N/A" rows.
+  if (real === 0) {
+    const docs = rec.docs || [];
+    const readable = docs.some((d) => !d.ocr_needed && (d.chars || 0) > 500);
+    let why = 'No concall transcripts or investor PPTs have been filed yet.';
+    let icon = 'file-x';
+    if (docs.length && !readable) { why = 'The available concall / PPT documents are scanned images — OCR pending.'; icon = 'scan-line'; }
+    else if (readable) { why = 'This period’s commentary didn’t surface any of the eight signals.'; icon = 'info'; }
+    return `<div class="dsection">${head('0/8 from management commentary')}
+      <div class="prow">
+        <span class="prow-ic"><i data-lucide="${icon}"></i></span>
+        <div class="prow-main"><div class="prow-note">${esc(why)}</div></div>
+        <div class="prow-right">${docs.length ? srcIcon(rec) : ''}</div>
+      </div></div>`;
+  }
+
   const latest = rec.qual.meta && rec.qual.meta.source ? ` · latest ${esc(rec.qual.meta.source)}` : '';
   const rows = QUAL_ORDER.map((k) => qualRow(params[k], rec)).join('');
   return `<div class="dsection">${head(`${real}/8 from management commentary${latest}`)}${rows}</div>`;

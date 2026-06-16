@@ -54,6 +54,7 @@ function readConfig() {
     maxInputChars: env.MAX_INPUT_CHARS ? Math.max(2000, parseInt(env.MAX_INPUT_CHARS, 10)) : 24000,
     maxBackoff: 4, // per-company retries on 429/5xx before giving up on it
     stopAfter: env.STOP_AFTER ? Math.max(1, parseInt(env.STOP_AFTER, 10)) : 4, // consecutive failures → halt (outage)
+    naRetryCap: env.NA_RETRY_CAP != null ? Math.max(0, parseInt(env.NA_RETRY_CAP, 10) || 0) : 2, // bounded re-reads of all-NA-with-docs
     force: truthy(env.FORCE),
   };
 }
@@ -103,16 +104,17 @@ function gatherDocs(manifest, slug) {
 }
 
 // A committed entry that should be RE-extracted rather than skipped: every param
-// is NA because of a model/parse failure (e.g. a provider returned the wrong JSON
-// shape), NOT because the company genuinely has no docs. Lets a re-run repair
-// garbage without FORCE-redoing the good ones.
-function isModelFailure(entry) {
+// is NA but the company HAD readable docs — either a model/parse hiccup or a weak
+// under-read. A fresh run (often a different free provider) can recover real
+// signal. Bounded by meta.na_retries so a genuinely silent concall isn't re-read
+// forever; a brand-new transcript still refreshes via the staleness path.
+function shouldReextract(entry, cap) {
   const params = entry && entry.params;
   if (!params) return false;
   const vals = Object.values(params);
-  if (!vals.length || !vals.every((p) => p.verdict === 'NA')) return false;
-  if (entry.meta && entry.meta.docs_used === 0) return false; // genuine no-docs — keep as-is
-  return vals.some((p) => /not returned by model|extraction failed/i.test(p.note || ''));
+  if (!vals.length || !vals.every((p) => p.verdict === 'NA')) return false; // has a real read — keep
+  if (entry.meta && entry.meta.docs_used === 0) return false; // no readable docs — nothing to re-read
+  return ((entry.meta && entry.meta.na_retries) || 0) < cap;
 }
 
 // Newest concall quarter available for a company (manifest periods are "YYYY-MM").
@@ -236,20 +238,31 @@ async function main() {
     const done = out.companies[slug];
     const newest = latestTranscriptPeriod(manifest, slug);
     const stale = done && isStaleSource(done.meta && done.meta.source, newest);
-    if (!cfg.force && done && !isModelFailure(done) && !stale) {
+    const reread = !!done && shouldReextract(done, cfg.naRetryCap);
+    if (!cfg.force && done && !reread && !stale) {
       log(`[${idx}] ${slug} — already done, skip (FORCE=1 to redo)`);
       continue;
     }
     if (stale) log(`[${idx}] ${slug} — newer transcript ${newest} > ${done.meta.source} → refreshing`);
+    else if (reread) log(`[${idx}] ${slug} — all-NA with docs → retry ${((done.meta && done.meta.na_retries) || 0) + 1}/${cfg.naRetryCap}`);
 
     const docs = gatherDocs(manifest, slug);
     const { text, sourceQuarter, docsUsed, charsIn } = buildInput(docs, { maxChars: cfg.maxInputChars });
 
     if (!text) {
-      out.companies[slug] = { name, params: naAllParams('No transcripts/PPT harvested'), meta: { docs_used: 0, chars_in: 0 } };
+      // Distinguish "nothing filed" from "filed but unreadable (scanned image)"
+      // so the dashboard can say so honestly and OCR can target the right ones.
+      const raw = manifest[slug] || [];
+      let note = 'No transcripts/PPT harvested';
+      let ocrPending = false;
+      if (raw.length) {
+        ocrPending = raw.some((e) => e.ocr_needed);
+        note = ocrPending ? 'Concall/PPT is a scanned image — OCR pending' : 'Harvested documents had no readable text';
+      }
+      out.companies[slug] = { name, params: naAllParams(note), meta: { docs_used: 0, chars_in: 0, ...(ocrPending ? { ocr_pending: true } : {}) } };
       stats.noDocs += 1;
       stats.done += 1;
-      log(`[${idx}] ${slug} (${name}) — no usable docs → all NA`);
+      log(`[${idx}] ${slug} (${name}) — ${ocrPending ? 'scanned only (OCR pending)' : 'no usable docs'} → all NA`);
       writeOut(out);
       continue;
     }
@@ -292,7 +305,10 @@ async function main() {
     }
 
     if (outcome) {
-      out.companies[slug] = { name, params: outcome.params, meta: { docs_used: docsUsed, chars_in: charsIn, est_tokens: est, source: sourceQuarter, provider: usedProv.provider } };
+      const allNA = Object.values(outcome.params).every((p) => p.verdict === 'NA');
+      const meta = { docs_used: docsUsed, chars_in: charsIn, est_tokens: est, source: sourceQuarter, provider: usedProv.provider };
+      if (allNA) meta.na_retries = ((done && done.meta && done.meta.na_retries) || 0) + 1; // bound re-reads of a silent concall
+      out.companies[slug] = { name, params: outcome.params, meta };
       stats.withDocs += 1;
       stats.charsIn += charsIn;
       stats.estTokens += est;
