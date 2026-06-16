@@ -41,8 +41,9 @@ async function load() {
   let qual = null;
   let moat = null;
   let docsManifest = null;
+  let news = null;
   try {
-    [companies, liquid, companiesMeta, universeMeta, qual, moat, docsManifest] = await Promise.all([
+    [companies, liquid, companiesMeta, universeMeta, qual, moat, docsManifest, news] = await Promise.all([
       fetch('data/daksham-companies.json').then((r) => {
         if (!r.ok) throw new Error('companies');
         return r.json();
@@ -53,6 +54,7 @@ async function load() {
       fetch('data/daksham-qualitative.json').then((r) => (r.ok ? r.json() : null)).catch(() => null),
       fetch('data/daksham-industry.json').then((r) => (r.ok ? r.json() : null)).catch(() => null),
       fetch('data/docs-manifest.json').then((r) => (r.ok ? r.json() : null)).catch(() => null),
+      fetch('data/daksham-news.json').then((r) => (r.ok ? r.json() : null)).catch(() => null),
     ]);
   } catch (err) {
     return errorState();
@@ -73,6 +75,8 @@ async function load() {
   if (qual && qual.companies) for (const [slug, v] of Object.entries(qual.companies)) qualBySlug.set(slug, v);
   const moatBySlug = new Map();
   if (moat && moat.companies) for (const [slug, v] of Object.entries(moat.companies)) moatBySlug.set(slug, v);
+  const newsBySlug = new Map(); // third-party news lens, joined by slug
+  if (news && news.companies) for (const [slug, v] of Object.entries(news.companies)) newsBySlug.set(slug, v);
   state.qualMeta = qual ? { generated_at: qual.generated_at, provider: qual.provider, model: qual.model, dry_run: qual.dry_run } : null;
   const docs = docsManifest && typeof docsManifest === 'object' ? docsManifest : {};
 
@@ -84,6 +88,8 @@ async function load() {
     rec.qualReal = rec.qual ? Object.values(rec.qual.params).filter((p) => p.verdict !== 'NA').length : 0;
     const m = moatBySlug.get(rec.slug);
     rec.moat = m && m.factors ? m : null;
+    const nw = newsBySlug.get(rec.slug);
+    rec.news = nw && nw.factors ? nw : null; // third-party news read (own/peer's third column)
     rec.docs = docs[rec.slug] || []; // [{type, period, source, ...}] for source links
     rec.asOf = companiesMeta && companiesMeta.generated_at; // Screener snapshot date (quantitative tier)
     return rec;

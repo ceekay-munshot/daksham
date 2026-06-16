@@ -264,9 +264,29 @@ Or run the **AI qualitative extraction** workflow (add `GEMINI_API_KEY` as a rep
 secret; default input is the 20-company smoke). The smoke prints sample outputs,
 tokens/company, provider/model, and the cost line. Scale up only after review.
 
-> Industry-lens params (triangulated Porter's-five, China-imports, govt-regulation,
-> inventory-buildup) are a **later** routine — they need industry-peer + third-party
-> news harvesting that isn't built yet.
+## Moat lens — three perspectives on the 8 Porter factors
+
+The "Moat & Qualitative" tier scores 8 factors (competition, barriers to entry,
+buyer/supplier power, substitution, China-imports, govt-regulation,
+inventory-buildup) on a TREND (0–5, higher = more favorable), from **three
+independent sources** so no single voice dominates the read:
+
+- **Own** — `scrapers/ai-industry.mjs`, Phase A: the company's *own* concalls.
+- **Peers** — `scrapers/ai-industry.mjs`, Phase B: pooled *peer* concalls, scored
+  per industry (with a **sector / broad-sector fallback** when an industry has too
+  few listed peers). → `public/data/daksham-industry.json`.
+- **News (third-party)** — `scrapers/ai-news.mjs`: recent **Google News** headlines
+  per company (RSS, India locale), an independent outside-in read scored with the
+  same factors + schema. → `public/data/daksham-news.json`, joined by slug. Daily,
+  crash-resumable, self-refreshing (`NEWS_FRESH_DAYS`); 100% free.
+
+```bash
+PROVIDER=mock COMPANIES=AWL node scrapers/ai-news.mjs   # offline (uses cache)
+GEMINI_API_KEY=… MAX_COMPANIES=20 npm run extract:news   # 20-company smoke
+```
+
+All three run on the same free-provider round-robin and fill the Own / Peers /
+News columns the dossier shows side by side.
 
 ## Evaluation layer
 

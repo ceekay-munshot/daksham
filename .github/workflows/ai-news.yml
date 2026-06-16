@@ -1,0 +1,107 @@
+name: AI third-party news lens
+
+# The independent, outside-in moat read — scores the SAME 8 Porter factors from
+# recent Google News headlines (per company) on the free round-robin, filling the
+# `third_party` column beside the own + peer lenses. No corpus needed; 100% free.
+# Crash-resumable and self-refreshing (re-scores entries older than fresh_days).
+on:
+  workflow_dispatch:
+    inputs:
+      companies:
+        description: "Comma-separated slugs. Blank (default) = all liquid companies."
+        required: false
+        default: ""
+      max_companies:
+        description: "Cap when `companies` is blank (liquid-universe order). Blank = all."
+        required: false
+        default: ""
+      provider:
+        description: "Force a provider (blank = round-robin every key set)."
+        required: false
+        default: ""
+      model:
+        description: "Model id (single-provider only)."
+        required: false
+        default: ""
+      rpm:
+        description: "Requests/min throttle per provider."
+        required: false
+        default: "10"
+      news_days:
+        description: "Recency window for headlines (Google News `when:Nd`)."
+        required: false
+        default: "60"
+      fresh_days:
+        description: "Skip companies refreshed within this many days (resume/refresh control)."
+        required: false
+        default: ""
+      force:
+        description: "Re-score every company regardless of freshness."
+        type: boolean
+        required: false
+        default: false
+  # Daily: builds coverage over the first runs (skipping fresh ones), then keeps
+  # the lens current at the fresh_days cadence. 07:00 UTC, spread from the others.
+  schedule:
+    - cron: "0 7 * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ai-news
+  cancel-in-progress: false
+
+jobs:
+  news:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
+      MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Extract third-party news lens
+        env:
+          COMPANIES: ${{ inputs.companies }}
+          MAX_COMPANIES: ${{ inputs.max_companies }}
+          PROVIDER: ${{ inputs.provider }}
+          MODEL: ${{ inputs.model }}
+          RPM: ${{ inputs.rpm }}
+          NEWS_DAYS: ${{ inputs.news_days }}
+          NEWS_FRESH_DAYS: ${{ inputs.fresh_days }}
+          FORCE: ${{ inputs.force }}
+        run: node scrapers/ai-news.mjs
+
+      - name: Commit news data
+        if: ${{ always() && github.ref_name == github.event.repository.default_branch }}
+        run: |
+          set -e
+          BR="${{ github.event.repository.default_branch }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/data/daksham-news.json
+          if git diff --cached --quiet; then
+            echo "No news changes — nothing to commit."
+            exit 0
+          fi
+          git commit -m "AI third-party news lens ($(date -u +%F))"
+          for i in 1 2 3 4; do
+            if git push origin "HEAD:$BR"; then echo "pushed"; exit 0; fi
+            echo "push attempt $i failed — fetching + rebasing, then retrying"
+            git fetch origin "$BR"
+            git rebase "origin/$BR"
+            sleep $((2 ** i))
+          done
+          echo "push failed after 4 attempts"; exit 1

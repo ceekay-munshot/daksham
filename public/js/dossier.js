@@ -317,12 +317,16 @@ function moatRow(factor, rec) {
   if (!factor) return '';
   const own = factor.own || {};
   const ind = factor.industry || {};
-  const note = own.trend && own.trend !== 'NA' && own.note ? own.note : ind.note || '';
+  // Third column: the independent news read (only shown once the news lens has run).
+  const news = rec.news && rec.news.factors ? rec.news.factors[factor.key] : null;
+  const pick = (f) => (f && f.trend && f.trend !== 'NA' && f.note ? f.note : '');
+  const note = pick(own) || pick(ind) || pick(news) || '';
+  const newsCell = news ? `<span class="moat-tag moat-tag-news">News</span>${moatScore(news)}` : '';
   return `<div class="prow">
     <span class="prow-ic"><i data-lucide="${MOAT_ICONS[factor.key] || 'shield'}"></i></span>
     <div class="prow-main">
       <div class="prow-label">${esc(factor.label)}</div>
-      <div class="moat-scores"><span class="moat-tag">Own</span>${moatScore(own)}<span class="moat-tag">${esc(peerLabel(rec))}</span>${moatScore(ind)}</div>
+      <div class="moat-scores"><span class="moat-tag">Own</span>${moatScore(own)}<span class="moat-tag">${esc(peerLabel(rec))}</span>${moatScore(ind)}${newsCell}</div>
       ${note ? `<div class="prow-note">${esc(note)}</div>` : ''}
     </div>
     <div class="prow-right">${srcIcon(rec)}</div>
@@ -352,9 +356,13 @@ function moatHtml(rec) {
   const footPeers = lvl === 'industry'
     ? `${peerName} peers' concalls`
     : `${peerName} ${lvlWord} peers' concalls (too few listed ${ownInd} peers for a direct read)`;
+  const hasNews = !!(rec.news && rec.news.factors);
+  const newsFoot = hasNews
+    ? `<b>News</b> from recent third-party headlines (Google News${rec.news.meta && rec.news.meta.latest ? `, latest ${esc(rec.news.meta.latest)}` : ''}).`
+    : '<b>News</b> (third-party) — pending its first run.';
   const rows = MOAT_ORDER.map((k) => moatRow(moat.factors[k], rec)).join('');
   return `<div class="dsection">${head(headSub)}${rows}
-    <div class="moat-foot"><b>Own</b> from this company's concalls (tap the source icon on each row); <b>${esc(peerLabel(rec))}</b> from ${footPeers}. Scored on TREND, 0–5, higher = more favorable; comparable within the group only. Third-party news lens — coming next.</div>
+    <div class="moat-foot"><b>Own</b> from this company's concalls (tap the source icon on each row); <b>${esc(peerLabel(rec))}</b> from ${footPeers}. ${newsFoot} Scored on TREND, 0–5, higher = more favorable; comparable within the group only.</div>
   </div>`;
 }
 
