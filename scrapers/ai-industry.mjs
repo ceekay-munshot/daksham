@@ -137,7 +137,9 @@ async function main() {
   for (const g of groups) {
     if (stopped) break;
     const key = lensKey(g.level, g.name);
-    if (!cfg.force && lens.industries[key]) { log(`  [lens] ${key} — done, skip`); continue; }
+    // Skip only entries that already carry a real read; retry NA ones (recover a
+    // weak/failed earlier run) so a normal scheduled run self-heals without force.
+    if (!cfg.force && lens.industries[key] && peerHasSignal(lens.industries[key].factors)) { log(`  [lens] ${key} — done, skip`); continue; }
     const members = membersByLevel[g.level].get(g.name) || [];
 
     // Pool sampled members' passages, tagged per company, capped to the input budget.
