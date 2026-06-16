@@ -253,6 +253,10 @@ const MOAT_ICONS = {
   supplier_power: 'truck', substitution_risk: 'repeat', china_imports: 'ship',
   govt_regulation: 'landmark', inventory_buildup: 'package',
 };
+// The peer read is scored against the narrowest grouping with enough listed
+// peers — its own industry, else a sector fallback — labelled so for the reader.
+const PEER_LABEL = { industry: 'Industry', sector: 'Sector', broad_sector: 'Sector group' };
+const peerLabel = (rec) => PEER_LABEL[rec && rec.moat && rec.moat.peer_level] || 'Industry';
 
 // 0-5 score chip (higher = more favorable) with a trend arrow; NA when not discussed.
 function moatScore(f) {
@@ -271,7 +275,7 @@ function moatRow(factor, rec) {
     <span class="prow-ic"><i data-lucide="${MOAT_ICONS[factor.key] || 'shield'}"></i></span>
     <div class="prow-main">
       <div class="prow-label">${esc(factor.label)}</div>
-      <div class="moat-scores"><span class="moat-tag">Own</span>${moatScore(own)}<span class="moat-tag">Industry</span>${moatScore(ind)}</div>
+      <div class="moat-scores"><span class="moat-tag">Own</span>${moatScore(own)}<span class="moat-tag">${esc(peerLabel(rec))}</span>${moatScore(ind)}</div>
       ${note ? `<div class="prow-note">${esc(note)}</div>` : ''}
     </div>
     <div class="prow-right">${srcIcon(rec)}</div>
@@ -293,9 +297,17 @@ function moatHtml(rec) {
         <div class="prow-right"><span class="pill pill-soon">Pending</span></div>
       </div></div>`;
   }
+  const lvl = moat.peer_level || 'industry';
+  const peerName = esc(moat.industry_name || 'sector');
+  const ownInd = esc(moat.own_industry || moat.industry_name || '');
+  const lvlWord = (PEER_LABEL[lvl] || 'Industry').toLowerCase();
+  const headSub = lvl === 'industry' ? `${peerName} · own vs peers` : `${ownInd} · own vs ${peerName} ${lvlWord} peers`;
+  const footPeers = lvl === 'industry'
+    ? `${peerName} peers' concalls`
+    : `${peerName} ${lvlWord} peers' concalls (too few listed ${ownInd} peers for a direct read)`;
   const rows = MOAT_ORDER.map((k) => moatRow(moat.factors[k], rec)).join('');
-  return `<div class="dsection">${head(`${esc(moat.industry_name || '')} · own vs peers`)}${rows}
-    <div class="moat-foot"><b>Own</b> from this company's concalls (tap the source icon on each row); <b>Industry</b> from ${esc(moat.industry_name || 'sector')} peers' concalls. Scored on TREND, 0–5, higher = more favorable; comparable within the industry only. Third-party news lens — coming next.</div>
+  return `<div class="dsection">${head(headSub)}${rows}
+    <div class="moat-foot"><b>Own</b> from this company's concalls (tap the source icon on each row); <b>${esc(peerLabel(rec))}</b> from ${footPeers}. Scored on TREND, 0–5, higher = more favorable; comparable within the group only. Third-party news lens — coming next.</div>
   </div>`;
 }
 

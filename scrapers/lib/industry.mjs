@@ -19,6 +19,15 @@ export const FACTORS = [
 ];
 
 export const FACTOR_KEYS = FACTORS.map((f) => f.key);
+
+// Peer-grouping hierarchy — score against the NARROWEST grouping that has enough
+// listed peers, falling back outward when an industry is too thin to read.
+export const PEER_LEVELS = ['industry', 'sector', 'broad_sector'];
+export const PEER_LABEL = { industry: 'Industry', sector: 'Sector', broad_sector: 'Sector group' };
+// Lens-file key: industry entries stay un-prefixed (preserve resumable history);
+// the wider fallback levels are namespaced so a name can't collide across levels.
+export const lensKey = (level, name) => (level === 'industry' ? name : `${level}::${name}`);
+
 const TRENDS = ['improving', 'stable', 'worsening', 'NA'];
 const CONFIDENCE = ['high', 'medium', 'low'];
 
@@ -201,5 +210,37 @@ export function combineCompany(industryName, ownFactors, industryFactors) {
       third_party: null, // pending — next routine
     };
   }
+  return out;
+}
+
+// ── Peer-group resolution + in-place upgrade helpers ─────────────────────────
+
+// Narrowest peer grouping that clears minPeers; null when even broad_sector can't.
+//   tags:   { industry, sector, broad_sector }
+//   counts: { <level>: { <name>: peerCount } }
+export function resolvePeerLevel(tags, counts, minPeers = CONFIG.minPeers) {
+  for (const level of PEER_LEVELS) {
+    const name = String((tags && tags[level]) || '').trim();
+    if (name && ((counts[level] && counts[level][name]) || 0) >= minPeers) return { level, name };
+  }
+  return null;
+}
+
+// A peer-lens factor map carries a real read when any factor is non-NA.
+export function peerHasSignal(factors) {
+  return !!factors && FACTOR_KEYS.some((k) => factors[k] && factors[k].trend && factors[k].trend !== 'NA');
+}
+
+// True when a combined company's INHERITED peer read is entirely NA — the trigger
+// to upgrade it to a fallback grouping in place (without re-reading 'own').
+export function inheritedAllNA(factors) {
+  return FACTOR_KEYS.every((k) => !factors[k] || !factors[k].industry || factors[k].industry.trend === 'NA');
+}
+
+// Recover the stored OWN factors from a combined company entry, so a better peer
+// read can be re-attached without re-calling the model for 'own'.
+export function extractOwn(factors) {
+  const out = {};
+  for (const k of FACTOR_KEYS) out[k] = (factors[k] && factors[k].own) || naFactor('No transcripts');
   return out;
 }

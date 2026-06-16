@@ -18,6 +18,7 @@ import { readDoc } from './docs-check.mjs';
 import {
   buildIndustryInput, ownPrompt, industryPrompt, shapeFactors, naAllFactors,
   combineCompany, FACTORS, RESPONSE_SCHEMA, CONFIG, SYSTEM_PROMPT,
+  PEER_LEVELS, lensKey, resolvePeerLevel, peerHasSignal, inheritedAllNA, extractOwn,
 } from './lib/industry.mjs';
 import { createPool, runItem, poolLabel, poolSummary } from './lib/llm-runner.mjs';
 
@@ -72,20 +73,47 @@ async function main() {
   const companies = readJSON(COMPANIES_PATH, []);
   const have = new Set(Object.keys(manifest));
 
-  // industry -> [{slug,name}] (only companies that have docs)
-  const byInd = new Map();
+  // Doc-having members + counts at each peer level (industry → sector → broad_sector).
+  const membersByLevel = { industry: new Map(), sector: new Map(), broad_sector: new Map() };
+  const countsByLevel = { industry: {}, sector: {}, broad_sector: {} };
+  const tagsOf = new Map(); // slug -> { name, industry, sector, broad_sector }
   for (const c of companies) {
     if (!c || !c.slug || !have.has(c.slug)) continue;
-    const ind = String(c.industry || '').trim();
-    if (!ind) continue;
-    if (!byInd.has(ind)) byInd.set(ind, []);
-    byInd.get(ind).push({ slug: c.slug, name: c.name || c.slug });
+    const tags = {
+      name: c.name || c.slug,
+      industry: String(c.industry || '').trim(),
+      sector: String(c.sector || '').trim(),
+      broad_sector: String(c.broad_sector || '').trim(),
+    };
+    tagsOf.set(c.slug, tags);
+    for (const level of PEER_LEVELS) {
+      const name = tags[level];
+      if (!name) continue;
+      if (!membersByLevel[level].has(name)) membersByLevel[level].set(name, []);
+      membersByLevel[level].get(name).push({ slug: c.slug, name: tags.name });
+      countsByLevel[level][name] = (countsByLevel[level][name] || 0) + 1;
+    }
   }
 
-  // scope: explicit INDUSTRIES, else all industries (largest first, capped by MAX_INDUSTRIES)
-  let scope = cfg.industries.length
+  // Scope: explicit INDUSTRIES, else all industries (largest first, capped). The
+  // companies in scope are what we process; each resolves its OWN narrowest
+  // qualifying peer group — which may be its sector when the industry is too thin.
+  const byInd = membersByLevel.industry;
+  const scopeIndustries = cfg.industries.length
     ? cfg.industries.filter((i) => byInd.has(i))
     : [...byInd.keys()].sort((a, b) => byInd.get(b).length - byInd.get(a).length).slice(0, cfg.maxIndustries);
+  const scopeSlugs = [];
+  const seenSlug = new Set();
+  for (const ind of scopeIndustries) for (const m of byInd.get(ind)) if (!seenSlug.has(m.slug)) { seenSlug.add(m.slug); scopeSlugs.push(m.slug); }
+
+  // Resolve each scoped company's peer group + the distinct groups we must score.
+  const peerOf = new Map();
+  const neededGroups = new Map();
+  for (const slug of scopeSlugs) {
+    const g = resolvePeerLevel(tagsOf.get(slug), countsByLevel, CONFIG.minPeers);
+    peerOf.set(slug, g);
+    if (g) neededGroups.set(lensKey(g.level, g.name), g);
+  }
 
   const stamp = { provider: isMock ? 'mock' : pool.providers.map((p) => p.provider).join(', '), model: pool.providers.map((p) => p.model).join(', '), dry_run: isMock };
   const lens = readJSON(LENS_PATH, null) || { industries: {} };
@@ -98,25 +126,19 @@ async function main() {
   if (isMock) { lens.note = out.note = 'MOCK dry-run — synthetic scores. Set an API key for real extraction.'; }
   else { delete lens.note; delete out.note; }
 
-  const stats = { lensRun: 0, lensNA: 0, own: 0, ownNA: 0, failed: 0, transient: 0 };
+  const stats = { lensRun: 0, lensNA: 0, own: 0, ownNA: 0, upgraded: 0, failed: 0, transient: 0 };
   const t0 = Date.now();
   let stopped = false;
   const stop = () => { stopped = true; log('\n⚠ All providers exhausted/disabled — progress saved, re-run to resume.'); };
 
-  // ── Phase B — INDUSTRY-PEER lens (one call per industry) ──
-  log(`\nPhase B — industry-peer lens (${scope.length} industries)`);
-  for (const ind of scope) {
+  // ── Phase B — PEER lens (one call per distinct resolved group) ──
+  const groups = [...neededGroups.values()];
+  log(`\nPhase B — peer lens (${groups.length} groups)`);
+  for (const g of groups) {
     if (stopped) break;
-    const members = byInd.get(ind);
-    if (!cfg.force && lens.industries[ind]) { log(`  [lens] ${ind} — done, skip`); continue; }
-
-    if (members.length < CONFIG.minPeers) {
-      lens.industries[ind] = { peers: members.length, factors: naAllFactors(`too few peers (<${CONFIG.minPeers})`) };
-      stats.lensNA += 1;
-      log(`  [lens] ${ind} — ${members.length} peers → NA`);
-      writeJSON(LENS_PATH, lens);
-      continue;
-    }
+    const key = lensKey(g.level, g.name);
+    if (!cfg.force && lens.industries[key]) { log(`  [lens] ${key} — done, skip`); continue; }
+    const members = membersByLevel[g.level].get(g.name) || [];
 
     // Pool sampled members' passages, tagged per company, capped to the input budget.
     const blocks = [];
@@ -130,17 +152,18 @@ async function main() {
     }
     const pooled = blocks.join('\n\n').slice(0, cfg.maxInputChars);
     if (!pooled) {
-      lens.industries[ind] = { peers: members.length, factors: naAllFactors('No relevant peer passages') };
+      lens.industries[key] = { level: g.level, peers: members.length, factors: naAllFactors('No relevant peer passages') };
       stats.lensNA += 1;
       writeJSON(LENS_PATH, lens);
       continue;
     }
 
-    log(`  [lens] ${ind} — ${members.length} peers, ${pooled.length} chars`);
-    const res = await runItem(pool, { system: SYSTEM_PROMPT, user: industryPrompt(ind, pooled), schema: RESPONSE_SCHEMA }, cfg, log);
+    log(`  [lens] ${key} (${g.level}) — ${members.length} peers, ${pooled.length} chars`);
+    const res = await runItem(pool, { system: SYSTEM_PROMPT, user: industryPrompt(g.name, pooled), schema: RESPONSE_SCHEMA }, cfg, log);
     if (res.kind === 'stop') { writeJSON(LENS_PATH, lens); stop(); break; }
     if (res.kind === 'transient') { stats.transient += 1; continue; } // leave for resume
-    lens.industries[ind] = {
+    lens.industries[key] = {
+      level: g.level,
       peers: members.length,
       provider: res.provider,
       factors: res.kind === 'failed' ? naAllFactors('Extraction failed') : shapeFactors(res.parsed),
@@ -149,37 +172,60 @@ async function main() {
     writeJSON(LENS_PATH, lens);
   }
 
-  // ── Phase A — OWN factors (one call per company) ──
-  log(`\nPhase A — own-document factors`);
-  for (const ind of scope) {
+  // ── Phase A — OWN factors per company + inherit the resolved peer lens ──
+  log(`\nPhase A — own-document factors (${scopeSlugs.length} companies)`);
+  for (const slug of scopeSlugs) {
     if (stopped) break;
-    const industryFactors = lens.industries[ind] && lens.industries[ind].factors;
-    for (const m of byInd.get(ind)) {
-      if (stopped) break;
-      if (!cfg.force && out.companies[m.slug]) { log(`  ${m.slug} — done, skip`); continue; }
+    const tags = tagsOf.get(slug);
+    const g = peerOf.get(slug);
+    const groupFactors = g ? (lens.industries[lensKey(g.level, g.name)] && lens.industries[lensKey(g.level, g.name)].factors) : null;
+    const peerName = g ? g.name : tags.industry;
+    const peerLevel = g ? g.level : 'industry';
 
-      const { text } = buildIndustryInput(gatherDocs(manifest, m.slug), { maxChars: cfg.maxInputChars });
-      let ownFactors;
-      if (!text) {
-        ownFactors = naAllFactors('No relevant transcript passages');
-        stats.ownNA += 1;
+    const existing = out.companies[slug];
+    if (!cfg.force && existing) {
+      // Upgrade in place: a previously-NA peer read + a now-qualifying fallback
+      // group → re-attach the better peer factors WITHOUT re-reading 'own'.
+      if (g && peerHasSignal(groupFactors) && inheritedAllNA(existing.factors)) {
+        out.companies[slug] = {
+          name: tags.name, industry_name: peerName, own_industry: tags.industry,
+          peer_level: peerLevel, peer_name: peerName,
+          factors: combineCompany(peerName, extractOwn(existing.factors), groupFactors),
+        };
+        stats.upgraded += 1;
+        log(`  ${slug} — peer read upgraded → ${peerLevel} ${peerName}`);
+        writeJSON(OUT_PATH, out);
       } else {
-        const res = await runItem(pool, { system: SYSTEM_PROMPT, user: ownPrompt(m.name, ind, text), schema: RESPONSE_SCHEMA }, cfg, log);
-        if (res.kind === 'stop') { stop(); break; }
-        if (res.kind === 'transient') { stats.transient += 1; continue; } // leave for resume
-        ownFactors = res.kind === 'failed' ? naAllFactors('Extraction failed') : shapeFactors(res.parsed);
-        res.kind === 'failed' ? (stats.failed += 1) : (stats.own += 1);
+        log(`  ${slug} — done, skip`);
       }
-      out.companies[m.slug] = { name: m.name, industry_name: ind, factors: combineCompany(ind, ownFactors, industryFactors) };
-      writeJSON(OUT_PATH, out);
+      continue;
     }
+
+    const { text } = buildIndustryInput(gatherDocs(manifest, slug), { maxChars: cfg.maxInputChars });
+    let ownFactors;
+    if (!text) {
+      ownFactors = naAllFactors('No relevant transcript passages');
+      stats.ownNA += 1;
+    } else {
+      const res = await runItem(pool, { system: SYSTEM_PROMPT, user: ownPrompt(tags.name, tags.industry, text), schema: RESPONSE_SCHEMA }, cfg, log);
+      if (res.kind === 'stop') { stop(); break; }
+      if (res.kind === 'transient') { stats.transient += 1; continue; } // leave for resume
+      ownFactors = res.kind === 'failed' ? naAllFactors('Extraction failed') : shapeFactors(res.parsed);
+      res.kind === 'failed' ? (stats.failed += 1) : (stats.own += 1);
+    }
+    out.companies[slug] = {
+      name: tags.name, industry_name: peerName, own_industry: tags.industry,
+      peer_level: peerLevel, peer_name: peerName,
+      factors: combineCompany(peerName, ownFactors, groupFactors || naAllFactors(`too few peers (<${CONFIG.minPeers})`)),
+    };
+    writeJSON(OUT_PATH, out);
   }
 
   const secs = ((Date.now() - t0) / 1000).toFixed(1);
   console.log('\n──────── summary ────────');
   console.log(`providers      : ${poolSummary(pool)}`);
-  console.log(`industries lens: ${stats.lensRun} scored, ${stats.lensNA} NA (too few peers)`);
-  console.log(`company own     : ${stats.own} scored, ${stats.ownNA} no-passages, ${stats.failed} failed`);
+  console.log(`peer-group lens : ${stats.lensRun} scored, ${stats.lensNA} NA (no passages)`);
+  console.log(`company own     : ${stats.own} scored, ${stats.ownNA} no-passages, ${stats.upgraded} peer-upgraded, ${stats.failed} failed`);
   if (stats.transient) console.log(`transient skips: ${stats.transient} (left for a later run)`);
   console.log(`cost           : ${isMock ? '$0 (offline mock)' : '$0 (free tiers — Gemini / Groq / Mistral / Cerebras)'}`);
   console.log(`elapsed        : ${secs}s`);

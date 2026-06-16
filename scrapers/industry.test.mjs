@@ -10,6 +10,11 @@ import {
   FACTORS,
   FACTOR_KEYS,
   RESPONSE_SCHEMA,
+  resolvePeerLevel,
+  peerHasSignal,
+  inheritedAllNA,
+  extractOwn,
+  lensKey,
 } from './lib/industry.mjs';
 import { mockFromSchema } from './lib/llm.mjs';
 
@@ -82,4 +87,43 @@ test('mockFromSchema fits the industry schema', () => {
     assert.ok(['improving', 'stable', 'worsening'].includes(ans[k].trend)); // non-NA picked
     assert.match(String(ans[k].score), /^[0-5]$/);
   }
+});
+
+test('resolvePeerLevel: narrowest grouping with >= minPeers, falls back outward', () => {
+  const counts = {
+    industry: { 'Bearings': 2 },          // too thin
+    sector: { 'Auto Components': 9 },      // qualifies
+    broad_sector: { 'Manufacturing': 40 },
+  };
+  const tags = { industry: 'Bearings', sector: 'Auto Components', broad_sector: 'Manufacturing' };
+  assert.deepEqual(resolvePeerLevel(tags, counts, 3), { level: 'sector', name: 'Auto Components' });
+  // industry itself qualifies → prefer it
+  counts.industry.Bearings = 5;
+  assert.deepEqual(resolvePeerLevel(tags, counts, 3), { level: 'industry', name: 'Bearings' });
+  // nothing qualifies → null
+  assert.equal(resolvePeerLevel({ industry: 'X', sector: 'Y', broad_sector: 'Z' }, counts, 3), null);
+});
+
+test('lensKey: industry un-prefixed, wider levels namespaced', () => {
+  assert.equal(lensKey('industry', 'Bearings'), 'Bearings');
+  assert.equal(lensKey('sector', 'Auto Components'), 'sector::Auto Components');
+  assert.equal(lensKey('broad_sector', 'Manufacturing'), 'broad_sector::Manufacturing');
+});
+
+test('peerHasSignal / inheritedAllNA / extractOwn round-trip', () => {
+  const own = shapeFactors(Object.fromEntries(FACTORS.map((f) => [f.key, { score: '4', trend: 'improving', note: 'g', confidence: 'high' }])));
+  const real = shapeFactors(Object.fromEntries(FACTORS.map((f) => [f.key, { score: '2', trend: 'stable', note: 'p', confidence: 'medium' }])));
+  const na = naAllFactors('too few peers (<3)');
+  assert.equal(peerHasSignal(real), true);
+  assert.equal(peerHasSignal(na), false);
+
+  // a company combined with an NA peer read is the upgrade trigger…
+  const cNA = combineCompany('Bearings', own, na);
+  assert.equal(inheritedAllNA(cNA), true);
+  // …and once a real peer read is attached, it isn't anymore
+  const cReal = combineCompany('Auto Components', own, real);
+  assert.equal(inheritedAllNA(cReal), false);
+  // extractOwn recovers the stored own factors (improving band) for re-combine
+  const recovered = extractOwn(cNA);
+  for (const k of FACTOR_KEYS) assert.equal(recovered[k].trend, 'improving');
 });
