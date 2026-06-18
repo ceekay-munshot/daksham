@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-import { evaluate, parseSeries, computeIndustryMedians } from './evaluate.mjs';
+import { evaluate, parseSeries, computeIndustryMedians, psRatio } from './evaluate.mjs';
 
 // The dashboard is served from public/, so it imports a vendored copy of this
 // module. Guard against drift — run `npm run sync:eval` after editing the source.
@@ -183,4 +183,33 @@ test('verdict shapes and evaluate envelope', () => {
   for (const p of Object.values(e.params)) {
     for (const f of ['key', 'label', 'value', 'verdict', 'output_type', 'note']) assert.ok(f in p);
   }
+});
+
+// ── data-quality guards (bugs surfaced by the data doctor) ───────────────────
+test('gross margin: NA when material-cost % is out of [0,100] (the 208% bug)', () => {
+  const bad = P({
+    material_cost_pct_annual_series: '40|45|-108',           // latest = -108 → GM 208%
+    material_cost_pct_qtr_series: '40|41|42|43|40|41|-12|42', // a negative in the window
+  });
+  assert.equal(bad.gross_margin_latest.verdict, 'NA');
+  assert.match(bad.gross_margin_latest.note, /out of range/);
+  assert.equal(bad.yoy_gross_margin_12q.verdict, 'NA');
+
+  const good = P({ material_cost_pct_annual_series: '40|45|42' });
+  assert.equal(good.gross_margin_latest.verdict, null);  // a raw value, not NA
+  assert.equal(good.gross_margin_latest.value, 58);      // 100 − 42
+});
+
+test('psRatio: suppresses near-zero-sales artefacts, keeps real ratios', () => {
+  assert.equal(psRatio('10209'), null); // MMTC — sales wound down to ~₹1 Cr
+  assert.equal(psRatio(-3), null);
+  assert.equal(psRatio(''), null);
+  assert.equal(psRatio('200.5'), null);
+  assert.equal(psRatio('3.95'), 3.95);  // HEG — a real P/S
+  assert.equal(psRatio('200'), 200);
+});
+
+test('mcap_to_sales raw field is blanked when the ratio is absurd', () => {
+  assert.equal(P({ mcap_to_sales: '10209' }).mcap_to_sales.value, '');
+  assert.equal(P({ mcap_to_sales: '3.95' }).mcap_to_sales.value, 3.95);
 });

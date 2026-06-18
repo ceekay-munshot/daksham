@@ -83,6 +83,16 @@ const num = (x) => {
 };
 const round1 = (n) => Math.round(n * 10) / 10;
 const round2 = (n) => Math.round(n * 100) / 100;
+// A material-cost % only yields a sane gross margin in [0,100]; negative (impossible)
+// or >100 means the source line is junk for this name — the caller should NA the read.
+const saneMc = (x) => Number.isFinite(x) && x >= 0 && x <= 100;
+// M-cap/Sales above this is a near-zero-sales artefact (e.g. a wound-down trader) —
+// arithmetically correct but meaningless; surface it blank, not a nonsense number.
+export const MAX_PS = 200;
+export const psRatio = (x) => {
+  const n = Number(x);
+  return x !== '' && x != null && Number.isFinite(n) && n >= 0 && n <= MAX_PS ? n : null;
+};
 const growthPct = (r) => `${(r * 100).toFixed(1)}%`; // r is a ratio (0.12 → "12.0%")
 const pctVal = (x) => `${x.toFixed(1)}%`; // x is already a percent (62.3 → "62.3%")
 const signed = (x) => `${x >= 0 ? '+' : ''}${x.toFixed(2)}`;
@@ -139,7 +149,8 @@ function rawFields(row) {
   const tags = [row.broad_sector, row.sector, row.industry].filter((x) => String(x ?? '').trim());
   out.push(raw('industry', 'Sector / Industry', tags.join(' / ')));
   out.push(raw('market_cap', 'Market Cap (₹ Cr)', num(row.market_cap ?? row.mkt_cap)));
-  out.push(raw('mcap_to_sales', 'M-Cap / Sales', num(row.mcap_to_sales)));
+  const ps = psRatio(row.mcap_to_sales);
+  out.push(raw('mcap_to_sales', 'M-Cap / Sales', ps == null ? '' : ps));
   out.push(raw('pe', 'P/E', num(row.stock_pe)));
   out.push(raw('pb', 'P/B', num(row.pb)));
   out.push(raw('ev_ebitda', 'EV / EBITDA', num(row.ev_ebitda)));
@@ -160,7 +171,9 @@ function grossMarginLatest(row) {
     return naSector(key, label, 'no material-cost line (financials/IT/services)');
   const mc = parseSeries(row.material_cost_pct_annual_series);
   if (!mc.length) return naData(key, label, 'no annual material-cost values');
-  return raw(key, label, round1(100 - mc[mc.length - 1]));
+  const last = mc[mc.length - 1];
+  if (!saneMc(last)) return naData(key, label, 'material-cost % out of range — gross margin unreliable');
+  return raw(key, label, round1(100 - last));
 }
 
 function grossMargin3yIncrease(row) {
@@ -171,9 +184,10 @@ function grossMargin3yIncrease(row) {
   const mc = parseSeries(row.material_cost_pct_annual_series);
   const lb = CONFIG.grossMargin.increaseLookbackYears;
   if (mc.length < lb + 1) return naData(key, label, `need ≥${lb + 1} annual points, have ${mc.length}`);
-  const gmLatest = 100 - mc[mc.length - 1];
-  const gmAgo = 100 - mc[mc.length - 1 - lb];
-  return raw(key, label, round1(gmLatest - gmAgo));
+  const mcLatest = mc[mc.length - 1];
+  const mcAgo = mc[mc.length - 1 - lb];
+  if (!saneMc(mcLatest) || !saneMc(mcAgo)) return naData(key, label, 'material-cost % out of range — gross margin unreliable');
+  return raw(key, label, round1((100 - mcLatest) - (100 - mcAgo)));
 }
 
 // ─────────────────────────── pass / fail ───────────────────────────────────
@@ -206,6 +220,7 @@ function yoyGrossMargin12q(row) {
   const c = CONFIG.yoyGrossMargin12q;
   const mc = parseSeries(row.material_cost_pct_qtr_series);
   if (mc.length < c.minQuarters) return naData(key, label, `need ≥${c.minQuarters} quarters, have ${mc.length}`);
+  if (mc.some((x) => !saneMc(x))) return naData(key, label, 'material-cost % out of range — gross margin unreliable');
 
   const gm = mc.map((x) => 100 - x);
   const latest = gm[gm.length - 1];

@@ -1,7 +1,7 @@
 // Daksham dashboard orchestrator. Loads the data, computes verdicts CLIENT-SIDE
 // via the shared eval module, and drives the KPIs / controls / grid / dossier.
 
-import { evaluate, computeIndustryMedians, CHECK_KEYS } from './evaluate.mjs';
+import { evaluate, computeIndustryMedians, CHECK_KEYS, psRatio } from './evaluate.mjs';
 import { esc } from './format.js';
 import * as grid from './grid.js';
 import { initDossier, openDossier, closeDossier, isDossierOpen } from './dossier.js';
@@ -129,7 +129,7 @@ function enrich(row) {
     pe: N(row.stock_pe),
     pb: N(row.pb),
     evEbitda: N(row.ev_ebitda),
-    mcapSales: N(row.mcap_to_sales),
+    mcapSales: psRatio(row.mcap_to_sales),
     passCount,
     applicable,
     pending: false,
@@ -152,7 +152,7 @@ function enrichPending(row) {
     pe: N(row.stock_pe ?? row.pe),
     pb: N(row.pb),
     evEbitda: N(row.ev_ebitda),
-    mcapSales: N(row.mcap_to_sales),
+    mcapSales: psRatio(row.mcap_to_sales),
     adtv: N(row.adtv_30d_cr),
     passCount: null,
     applicable: 0,

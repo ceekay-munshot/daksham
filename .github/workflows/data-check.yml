@@ -1,0 +1,47 @@
+name: Data check
+
+# Always-on guard: validates everything the dashboard consumes (public/data/*)
+# whenever the data or the logic that shapes it changes — including the bot's
+# scheduled data commits. Fails on any ERROR (impossible values, broken refs,
+# evaluate() throwing, invalid lens shapes). The data doctor has no external
+# deps, so this runs with just Node — no install step.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "public/data/**"
+      - "eval/**"
+      - "scrapers/**"
+      - ".github/workflows/data-check.yml"
+  pull_request:
+    paths:
+      - "public/data/**"
+      - "eval/**"
+      - "scrapers/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: data-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Validate the doctor itself
+        run: node --test scrapers/data-doctor.test.mjs
+
+      - name: Run data doctor (fails on any ERROR)
+        run: node scrapers/data-doctor.mjs
