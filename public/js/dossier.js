@@ -317,19 +317,62 @@ function moatRow(factor, rec) {
   if (!factor) return '';
   const own = factor.own || {};
   const ind = factor.industry || {};
-  // Third column: the independent news read (only shown once the news lens has run).
   const news = rec.news && rec.news.factors ? rec.news.factors[factor.key] : null;
-  const pick = (f) => (f && f.trend && f.trend !== 'NA' && f.note ? f.note : '');
-  const note = pick(own) || pick(ind) || pick(news) || '';
   const newsCell = news ? `<span class="moat-tag moat-tag-news">News</span>${moatScore(news)}` : '';
-  return `<div class="prow">
+  // The row toggles an evidence panel (rendered right after it) — click to see WHY.
+  return `<div class="prow prow-expand" data-evidence="${esc(factor.key)}" role="button" tabindex="0" aria-expanded="false" title="Show the reasoning + sources">
     <span class="prow-ic"><i data-lucide="${MOAT_ICONS[factor.key] || 'shield'}"></i></span>
     <div class="prow-main">
       <div class="prow-label">${esc(factor.label)}</div>
       <div class="moat-scores"><span class="moat-tag">Own</span>${moatScore(own)}<span class="moat-tag">${esc(peerLabel(rec))}</span>${moatScore(ind)}${newsCell}</div>
-      ${note ? `<div class="prow-note">${esc(note)}</div>` : ''}
     </div>
-    <div class="prow-right">${srcIcon(rec)}</div>
+    <div class="prow-right"><i data-lucide="chevron-down" class="prow-chev"></i></div>
+  </div>
+  ${evidencePanel(factor, rec)}`;
+}
+
+// One lens's evidence: its score + confidence, the reasoning note, and source(s).
+function evidenceBlock(tag, f, sources) {
+  if (!f) return '';
+  const conf = f.confidence ? `<span class="ev-conf qconf-${esc(f.confidence)}">${esc(f.confidence)} conf.</span>` : '';
+  const note = f.note && String(f.note).trim() ? f.note : 'Not discussed in the source.';
+  return `<div class="ev-block">
+    <div class="ev-head"><span class="moat-tag">${esc(tag)}</span>${moatScore(f)}${conf}</div>
+    <div class="ev-note">${esc(note)}</div>
+    ${sources || ''}
+  </div>`;
+}
+
+// The drill-down box: why each lens scored what it did, with the actual sources —
+// this company's concall (Own), the peer companies (Industry), the headlines (News).
+function evidencePanel(factor, rec) {
+  const own = factor.own || {};
+  const ind = factor.industry || {};
+  const news = rec.news && rec.news.factors ? rec.news.factors[factor.key] : null;
+
+  const ps = primarySource(rec);
+  const ownSrc = `<div class="ev-src"><a href="${esc(ps.url)}" target="_blank" rel="noopener"><i data-lucide="file-text"></i>${ps.q ? `${esc(ps.q)} concall` : 'source document'} ↗</a></div>`;
+
+  const peers = (rec.moat && rec.moat.peers) || [];
+  const peerSrc = peers.length
+    ? `<div class="ev-src ev-peers">From ${peers.length} peers — open one to see its own read: ${peers
+        .slice(0, 10)
+        .map((p) => `<button class="ev-peer" data-peer="${esc(p.slug)}" title="Open ${esc(p.name)}">${esc(p.name)}</button>`)
+        .join('')}</div>`
+    : '<div class="ev-src ev-muted">Peer list populates on the next moat-lens run.</div>';
+
+  const heads = (rec.news && rec.news.headlines) || [];
+  const newsSrc = heads.length
+    ? `<ul class="ev-news">${heads
+        .slice(0, 6)
+        .map((h) => `<li><a href="${esc(h.url || '#')}" target="_blank" rel="noopener">${esc(h.title || '')}</a><span class="ev-meta">${esc(h.source || '')}${h.date ? ` · ${esc(h.date)}` : ''}</span></li>`)
+        .join('')}</ul>`
+    : '<div class="ev-src ev-muted">Headlines populate on the next news-lens run.</div>';
+
+  return `<div class="moat-ev">
+    ${evidenceBlock('Own', own, ownSrc)}
+    ${evidenceBlock(peerLabel(rec), ind, peerSrc)}
+    ${news ? evidenceBlock('News', news, newsSrc) : ''}
   </div>`;
 }
 
@@ -432,8 +475,24 @@ export function initDossier() {
     if (exp) return handleExport(exp);
     if (e.target.closest('[data-close]')) return closeDossier();
     const btn = e.target.closest('[data-chart]');
-    if (btn && charts[btn.dataset.chart]) openChart(charts[btn.dataset.chart]);
+    if (btn && charts[btn.dataset.chart]) return openChart(charts[btn.dataset.chart]);
+    // moat factor row → toggle its evidence panel (let links / peer buttons pass through)
+    const ev = e.target.closest('[data-evidence]');
+    if (ev && !e.target.closest('a, [data-peer]')) toggleEvidence(ev);
   });
+  elDossier.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const ev = e.target.closest('[data-evidence]');
+    if (!ev) return;
+    e.preventDefault();
+    toggleEvidence(ev);
+  });
+}
+
+function toggleEvidence(row) {
+  const panel = row.nextElementSibling;
+  if (!panel || !panel.classList.contains('moat-ev')) return;
+  row.setAttribute('aria-expanded', String(panel.classList.toggle('open')));
 }
 
 export const isDossierOpen = () => !!elDossier && elDossier.classList.contains('show');

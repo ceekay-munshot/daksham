@@ -369,6 +369,30 @@ table.master tbody tr:last-child td { border-bottom: none; }
 .moat-tag { font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.04em; }
 .moat-tag:not(:first-child) { margin-left: 8px; }
 .moat-tag-news { color: #6366f1; } /* third-party news lens — distinct accent */
+
+/* ── Moat evidence drill-down (click a factor row for the reasoning) ─────────*/
+.prow-expand { cursor: pointer; }
+.prow-expand:hover { background: #f8fafc; }
+.prow-chev { width: 16px; height: 16px; color: #94a3b8; transition: transform 0.18s; }
+.prow-expand[aria-expanded='true'] .prow-chev { transform: rotate(180deg); }
+.moat-ev { display: none; padding: 2px 16px 14px 58px; background: #f8fafc; border-bottom: 1px solid var(--line-soft); }
+.moat-ev.open { display: block; }
+.ev-block { padding: 9px 0; border-top: 1px dashed #e2e8f0; }
+.ev-block:first-child { border-top: none; }
+.ev-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ev-conf { font-size: 10px; font-weight: 600; padding: 1px 7px; border-radius: 999px; }
+.ev-note { font-size: 12.5px; color: #475569; margin: 5px 0 3px; line-height: 1.45; }
+.ev-src { font-size: 11.5px; color: #64748b; margin-top: 3px; }
+.ev-src a { color: #4338ca; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; }
+.ev-src i { width: 12px; height: 12px; }
+.ev-muted { color: #94a3b8; font-style: italic; }
+.ev-peers { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.ev-peer { font-size: 11px; font-weight: 600; color: #3730a3; background: #e0e7ff; border: none; padding: 2px 9px; border-radius: 999px; cursor: pointer; }
+.ev-peer:hover { background: #c7d2fe; }
+.ev-news { margin: 5px 0 0; padding-left: 16px; }
+.ev-news li { font-size: 12px; margin-bottom: 4px; line-height: 1.4; }
+.ev-news a { color: #4338ca; font-weight: 600; }
+.ev-meta { color: #94a3b8; margin-left: 6px; font-size: 10.5px; }
 .moat-cell { font-size: 11.5px; font-weight: 700; padding: 1px 8px; border-radius: 999px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .ms-good { background: #dcfce7; color: #047857; }
 .ms-mid { background: #fef9c3; color: #a16207; }

@@ -183,6 +183,9 @@ async function main() {
     const groupFactors = g ? (lens.industries[lensKey(g.level, g.name)] && lens.industries[lensKey(g.level, g.name)].factors) : null;
     const peerName = g ? g.name : tags.industry;
     const peerLevel = g ? g.level : 'industry';
+    // The peer companies whose concalls fed the read — so the dossier can show
+    // "what other peers are saying" and link straight to each one.
+    const peers = g ? (membersByLevel[g.level].get(g.name) || []).filter((m) => m.slug !== slug).slice(0, 12).map((m) => ({ slug: m.slug, name: m.name })) : [];
 
     const existing = out.companies[slug];
     if (!cfg.force && existing) {
@@ -191,7 +194,7 @@ async function main() {
       if (g && peerHasSignal(groupFactors) && inheritedAllNA(existing.factors)) {
         out.companies[slug] = {
           name: tags.name, industry_name: peerName, own_industry: tags.industry,
-          peer_level: peerLevel, peer_name: peerName,
+          peer_level: peerLevel, peer_name: peerName, peers,
           factors: combineCompany(peerName, extractOwn(existing.factors), groupFactors),
         };
         stats.upgraded += 1;
@@ -217,7 +220,7 @@ async function main() {
     }
     out.companies[slug] = {
       name: tags.name, industry_name: peerName, own_industry: tags.industry,
-      peer_level: peerLevel, peer_name: peerName,
+      peer_level: peerLevel, peer_name: peerName, peers,
       factors: combineCompany(peerName, ownFactors, groupFactors || naAllFactors(`too few peers (<${CONFIG.minPeers})`)),
     };
     writeJSON(OUT_PATH, out);

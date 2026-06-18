@@ -147,7 +147,7 @@ async function main() {
     }
 
     const items = await getNews(slug, name, fetchRl, cfg, log);
-    const { text, count, latest } = buildNewsInput(items, { maxChars: cfg.maxInputChars, maxItems: cfg.maxItems });
+    const { text, count, latest, items: used } = buildNewsInput(items, { maxChars: cfg.maxInputChars, maxItems: cfg.maxItems });
 
     if (!text) {
       out.companies[slug] = { name, factors: naAllFactors('No recent news found'), meta: { items: 0, fetched_at: new Date().toISOString() } };
@@ -163,7 +163,9 @@ async function main() {
     if (res.kind === 'transient') { stats.transient += 1; continue; } // leave for resume
 
     const factors = res.kind === 'failed' ? naAllFactors('Extraction failed') : shapeFactors(res.parsed);
-    out.companies[slug] = { name, factors, meta: { items: count, latest, fetched_at: new Date().toISOString(), provider: res.provider } };
+    // Keep the headlines that drove the read, so the dossier can show "what news".
+    const headlines = (used || []).slice(0, 10).map((h) => ({ title: h.title, source: h.source, date: h.date, url: h.link }));
+    out.companies[slug] = { name, factors, headlines, meta: { items: count, latest, fetched_at: new Date().toISOString(), provider: res.provider } };
     res.kind === 'failed' ? (stats.failed += 1) : (stats.scored += 1);
     stats.items += count;
     writeJSON(OUT_PATH, out);

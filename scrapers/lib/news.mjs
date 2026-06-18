@@ -93,14 +93,16 @@ export function buildNewsInput(items, { maxChars = CONFIG.maxInputChars, maxItem
     .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
   const seen = new Set();
   const rows = [];
+  const kept = [];
   for (const it of sorted) {
     if (rows.length >= maxItems) break;
     const key = String(it.title).slice(0, 90).toLowerCase().replace(/[^a-z0-9]+/g, '');
     if (!key || seen.has(key)) continue;
     seen.add(key);
     rows.push(`${it.date || '????-??-??'} · ${it.source || 'news'} — ${it.title}`);
+    kept.push(it);
   }
   let text = rows.join('\n');
   if (text.length > maxChars) text = text.slice(0, maxChars);
-  return { text, count: rows.length, latest: (sorted.find((x) => x.date) || {}).date || '' };
+  return { text, count: rows.length, latest: (sorted.find((x) => x.date) || {}).date || '', items: kept };
 }

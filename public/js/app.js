@@ -291,6 +291,14 @@ function wire() {
     const rec = state.bySlug.get(tr.dataset.slug);
     if (rec) openDossier(rec);
   });
+
+  // From a moat evidence panel, a peer chip opens that peer's own dossier.
+  $('dossier').addEventListener('click', (e) => {
+    const peer = e.target.closest('[data-peer]');
+    if (!peer) return;
+    const rec = state.bySlug.get(peer.dataset.peer);
+    if (rec) openDossier(rec);
+  });
 }
 
 function resetFilters() {
