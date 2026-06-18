@@ -9,7 +9,15 @@ import {
   cachePath,
   slugSafe,
   absolutize,
+  parseBseCode,
 } from './lib/docs.mjs';
+
+test('parseBseCode: scrip from a BSE link (path or scripcode=) or a text label', () => {
+  assert.equal(parseBseCode('<a href="https://www.bseindia.com/stock-share-price/cesc-ltd/cesc/500084/">BSE</a>'), '500084');
+  assert.equal(parseBseCode('<a href="https://www.bseindia.com/stock-share-price/x/x/?scripcode=532174">BSE</a>'), '532174');
+  assert.equal(parseBseCode('<p>BSE: 500084 &nbsp; NSE: CESC</p>'), '500084');
+  assert.equal(parseBseCode('<p>NSE only, no bse code</p>'), '');
+});
 
 // A Screener "Concalls" block: dated rows with Transcript / Notes / PPT links.
 // 5 transcripts (one relative href), 2 PPTs, and a raw-transcript link to ignore.

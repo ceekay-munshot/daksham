@@ -13,7 +13,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { launchLoggedIn, gotoWithRetry, sleep, DESKTOP_UA } from './lib/screener.mjs';
-import { parseDocuments, selectDocs, manifestEntry, slugSafe } from './lib/docs.mjs';
+import { parseDocuments, selectDocs, manifestEntry, slugSafe, parseBseCode } from './lib/docs.mjs';
+import { bseAnnUrl, parseBseAnnouncements } from './lib/bse.mjs';
 import pdf from 'pdf-parse/lib/pdf-parse.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -55,6 +56,17 @@ const loadJson = (p, fallback) => {
     return fallback;
   }
 };
+
+// Raw BSE announcements JSON for a scrip, via the logged-in context (carries a
+// real UA + cookies, so BSE is less likely to block). Returns the response text.
+async function fetchBseAnnouncements(context, scrip) {
+  const r = await context.request.get(bseAnnUrl(scrip), {
+    timeout: 30000,
+    headers: { Referer: 'https://www.bseindia.com/', Origin: 'https://www.bseindia.com', Accept: 'application/json' },
+  });
+  if (!r.ok()) throw new Error(`HTTP ${r.status()}`);
+  return r.text();
+}
 
 async function extractPdfText(buf) {
   try {
@@ -143,6 +155,32 @@ async function main() {
         }
 
         const docs = selectDocs(parseDocuments(html));
+
+        // BSE fallback: Screener didn't list a transcript → look on BSE directly.
+        if (!docs.some((d) => d.type === 'transcript')) {
+          const code = parseBseCode(html);
+          if (!code) {
+            console.log(`    ${slug} — no transcript on Screener; no BSE code on page`);
+          } else {
+            try {
+              const raw = await fetchBseAnnouncements(context, code);
+              if (cfg.debug) {
+                const dbg = path.join(ROOT, 'cache', 'docs', '_debug');
+                mkdirSync(dbg, { recursive: true });
+                writeFileSync(path.join(dbg, `bse-${slugSafe(slug)}.json`), raw);
+              }
+              const bseDocs = parseBseAnnouncements(JSON.parse(raw));
+              for (const bd of bseDocs) {
+                if (!docs.some((d) => d.type === 'transcript' && d.period === bd.period)) docs.push(bd);
+              }
+              console.log(`    ${slug} — BSE scrip ${code}: ${bseDocs.length} transcript(s)`);
+            } catch (e) {
+              console.warn(`    ${slug} — BSE lookup failed (scrip ${code}): ${e.message}`);
+            }
+            await sleep(300); // politeness to BSE
+          }
+        }
+
         if (!docs.length) {
           todoSet.add(slug);
           delete manifest[slug];

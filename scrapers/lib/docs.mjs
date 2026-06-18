@@ -96,6 +96,24 @@ export function selectDocs(parsed, { maxTranscripts = 4 } = {}) {
   return out;
 }
 
+// The BSE scrip code (6 digits) from a Screener company page — lets the harvester
+// query BSE directly when Screener lists no transcript. Tries a bseindia.com link
+// first (code in the path or a scripcode= param), then a "BSE: 500084" text label.
+export function parseBseCode(html) {
+  const $ = cheerio.load(html);
+  let code = '';
+  $('a[href*="bseindia.com"]').each((_, a) => {
+    if (code) return;
+    const m = ($(a).attr('href') || '').match(/(?:scrip[_]?code=|\/)(\d{6})(?:[/?#]|$)/i);
+    if (m) code = m[1];
+  });
+  if (!code) {
+    const m = $.root().text().match(/\bBSE(?:\s*Code)?\s*[:\-]?\s*(\d{6})\b/i);
+    if (m) code = m[1];
+  }
+  return code;
+}
+
 // Filesystem-safe slug for the cache path.
 export const slugSafe = (slug) => String(slug || '').replace(/[^A-Za-z0-9._-]/g, '_');
 
