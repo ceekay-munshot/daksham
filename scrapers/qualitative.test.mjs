@@ -5,6 +5,7 @@ import {
   buildInput,
   openingRemarks,
   keywordSentences,
+  pptSentences,
   shapeVerdicts,
   naAllParams,
   pickProvider,
@@ -41,6 +42,27 @@ test('keywordSentences: keeps relevant sentences, drops noise', () => {
   assert.match(joined, /order book grew 20%/);
   assert.match(joined, /EBITDA margin/);
   assert.doesNotMatch(joined, /weather and logistics/);
+});
+
+test('keywordSentences / pptSentences: drop financial-table rows + safe-harbor boilerplate', () => {
+  const table = 'Operating EBITDA6966066702 and Revenue from Operations4,0964,0053,877 are reported here.';
+  const boiler = 'Important factors that could make a difference include demand supply conditions; the cautionary statement applies.';
+  const kwSent = 'We expect EBITDA margin to expand as fuel and power procurement costs decline next year.';
+  const narrative = 'Purvah Green won two new renewable projects this quarter, a 300 MW hybrid and a 250 MW wind project.';
+  const doc = [table, boiler, kwSent, narrative].join(' ');
+
+  // keyword path: keeps the clean relevant sentence, drops the table + boilerplate
+  const kw = keywordSentences(doc).join(' | ');
+  assert.match(kw, /margin to expand/);
+  assert.doesNotMatch(kw, /6966066702/);
+  assert.doesNotMatch(kw, /cautionary statement/i);
+
+  // PPT path: keeps narrative even with no keyword, still drops the junk
+  const ppt = pptSentences(doc).join(' | ');
+  assert.match(ppt, /two new renewable projects/);
+  assert.match(ppt, /margin to expand/);
+  assert.doesNotMatch(ppt, /6966066702/);
+  assert.doesNotMatch(ppt, /Important factors that could/);
 });
 
 test('buildInput: newest-first, tagged, deduped, capped; empty when no usable docs', () => {
