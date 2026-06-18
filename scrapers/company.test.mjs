@@ -38,6 +38,7 @@ const FIXTURE = `<!doctype html><html><body>
     <tr><td class="text">Sales&nbsp;+</td><td>100</td><td>110</td><td>120</td></tr>
     <tr><td class="text">Expenses&nbsp;-</td><td>80</td><td>87</td><td>94</td></tr>
     <tr><td class="text">Material Cost %</td><td>40%</td><td>41%</td><td>42%</td></tr>
+    <tr><td class="text">Manufacturing Cost %</td><td>8%</td><td>9%</td><td>10%</td></tr>
     <tr><td class="text">OPM %</td><td>20</td><td>21</td><td>22</td></tr>
   </tbody></table></section>
 
@@ -46,6 +47,7 @@ const FIXTURE = `<!doctype html><html><body>
     <tr><td class="text">Sales&nbsp;+</td><td>1,000</td><td>1,100</td><td>1,200</td><td>1,250</td></tr>
     <tr><td class="text">Expenses&nbsp;-</td><td>820</td><td>891</td><td>960</td><td>988</td></tr>
     <tr><td class="text">Material Cost %</td><td>45%</td><td>44%</td><td>43%</td><td>42%</td></tr>
+    <tr><td class="text">Manufacturing Cost %</td><td>10%</td><td>11%</td><td>12%</td><td>13%</td></tr>
     <tr><td class="text">OPM %</td><td>18</td><td>19</td><td>20</td><td>21</td></tr>
   </tbody></table></section>
 
@@ -96,10 +98,11 @@ test('parseCompanyPage: compounded sales growth', () => {
   assert.equal(c.sales_cagr_ttm, '20');
 });
 
-test('parseCompanyPage: quarterly series + expanded Material Cost %', () => {
+test('parseCompanyPage: quarterly series + expanded Material/Manufacturing Cost %', () => {
   const c = parseCompanyPage(FIXTURE);
   assert.equal(c.sales_qtr_series, '100|110|120');
   assert.equal(c.material_cost_pct_qtr_series, '40|41|42'); // % stripped, from expanded row
+  assert.equal(c.manufacturing_cost_pct_qtr_series, '8|9|10'); // the dominant COGS line for utilities
 });
 
 test('parseCompanyPage: annual P&L series drop the TTM column', () => {
@@ -107,6 +110,7 @@ test('parseCompanyPage: annual P&L series drop the TTM column', () => {
   assert.equal(c.revenue_series, '1000|1100|1200'); // commas stripped, TTM dropped
   assert.equal(c.opm_series, '18|19|20');
   assert.equal(c.material_cost_pct_annual_series, '45|44|43'); // expanded sub-row, TTM dropped
+  assert.equal(c.manufacturing_cost_pct_annual_series, '10|11|12'); // TTM dropped
 });
 
 test('parseCompanyPage: latest period labels per axis (the "as of" stamps)', () => {

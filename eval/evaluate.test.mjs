@@ -213,3 +213,13 @@ test('mcap_to_sales raw field is blanked when the ratio is absurd', () => {
   assert.equal(P({ mcap_to_sales: '10209' }).mcap_to_sales.value, '');
   assert.equal(P({ mcap_to_sales: '3.95' }).mcap_to_sales.value, 3.95);
 });
+
+test('gross margin: subtracts material + manufacturing cost (the CESC 99% bug)', () => {
+  // power utility — material ~0, manufacturing ~61 → GM ~38, not 99
+  const cesc = P({ material_cost_pct_annual_series: '0|0|1', manufacturing_cost_pct_annual_series: '47|55|61' });
+  assert.equal(cesc.gross_margin_latest.value, 38);
+  // unchanged when there is no manufacturing line (material is the COGS proxy)
+  assert.equal(P({ material_cost_pct_annual_series: '40|42|45' }).gross_margin_latest.value, 55);
+  // both cost lines absent (financials / IT / services) → NA
+  assert.equal(P({ stock_pe: '30' }).gross_margin_latest.verdict, 'NA');
+});

@@ -56,7 +56,7 @@ function bucketer() {
 // ── companies (the quantitative tier) ────────────────────────────────────────
 const HARD = [['market_cap', 1e7], ['current_price', 1e6]]; // <=0 or NaN = impossible
 const SOFT = [['stock_pe', 2000], ['pb', 300], ['ev_ebitda', 2000], ['mcap_to_sales', 500], ['roce', 500], ['roe', 500], ['book_value', 1e6]];
-const SERIES = ['sales_qtr_series', 'material_cost_pct_qtr_series', 'revenue_series', 'opm_series', 'material_cost_pct_annual_series', 'cfo_series', 'net_block_series', 'inventory_series', 'promoter_holding_series', 'fii_holding_series', 'dii_holding_series'];
+const SERIES = ['sales_qtr_series', 'material_cost_pct_qtr_series', 'manufacturing_cost_pct_qtr_series', 'revenue_series', 'opm_series', 'material_cost_pct_annual_series', 'manufacturing_cost_pct_annual_series', 'cfo_series', 'net_block_series', 'inventory_series', 'promoter_holding_series', 'fii_holding_series', 'dii_holding_series'];
 const SERIES_CAP = { sales_qtr_series: 12, material_cost_pct_qtr_series: 12, promoter_holding_series: 8, fii_holding_series: 8, dii_holding_series: 8 };
 
 const COMPANY_LEVELS = {
@@ -115,7 +115,7 @@ export function checkCompanies(rows, R) {
       const n = parseSeries(r[s]).length;
       if (n > cap) b.push('series.too_long', `${slug}.${s}=${n}>${cap}`);
     }
-    for (const s of ['material_cost_pct_qtr_series', 'material_cost_pct_annual_series']) {
+    for (const s of ['material_cost_pct_qtr_series', 'manufacturing_cost_pct_qtr_series', 'material_cost_pct_annual_series', 'manufacturing_cost_pct_annual_series']) {
       if (parseSeries(r[s]).some((v) => v < 0 || v > 100)) b.push('material_cost.range', `${slug}.${s} out of [0,100]`);
     }
     if (!r.latest_quarter && !r.latest_fy) missingPeriods += 1;

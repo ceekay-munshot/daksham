@@ -86,6 +86,19 @@ const round2 = (n) => Math.round(n * 100) / 100;
 // A material-cost % only yields a sane gross margin in [0,100]; negative (impossible)
 // or >100 means the source line is junk for this name — the caller should NA the read.
 const saneMc = (x) => Number.isFinite(x) && x >= 0 && x <= 100;
+// Direct cost of goods = raw-material % + manufacturing % (power/fuel/conversion),
+// newest-aligned and summed. For utilities & heavy manufacturers the bulk sits in
+// manufacturing, so material alone overstates gross margin (e.g. a power co at 99%).
+function cogsSeries(materialStr, manufacturingStr) {
+  const m = parseSeries(materialStr);
+  const f = parseSeries(manufacturingStr);
+  if (!f.length) return m;
+  if (!m.length) return f;
+  const n = Math.min(m.length, f.length);
+  const out = [];
+  for (let i = 0; i < n; i++) out.push(m[m.length - n + i] + f[f.length - n + i]);
+  return out;
+}
 // M-cap/Sales above this is a near-zero-sales artefact (e.g. a wound-down trader) —
 // arithmetically correct but meaningless; surface it blank, not a nonsense number.
 export const MAX_PS = 200;
@@ -167,27 +180,27 @@ function rawFields(row) {
 function grossMarginLatest(row) {
   const key = 'gross_margin_latest';
   const label = 'Gross Margin (latest) %';
-  if (isBlank(row.material_cost_pct_annual_series))
-    return naSector(key, label, 'no material-cost line (financials/IT/services)');
-  const mc = parseSeries(row.material_cost_pct_annual_series);
-  if (!mc.length) return naData(key, label, 'no annual material-cost values');
-  const last = mc[mc.length - 1];
-  if (!saneMc(last)) return naData(key, label, 'material-cost % out of range — gross margin unreliable');
+  if (isBlank(row.material_cost_pct_annual_series) && isBlank(row.manufacturing_cost_pct_annual_series))
+    return naSector(key, label, 'no material/manufacturing-cost line (financials/IT/services)');
+  const cogs = cogsSeries(row.material_cost_pct_annual_series, row.manufacturing_cost_pct_annual_series);
+  if (!cogs.length) return naData(key, label, 'no annual cost values');
+  const last = cogs[cogs.length - 1];
+  if (!saneMc(last)) return naData(key, label, 'cost % out of range — gross margin unreliable');
   return raw(key, label, round1(100 - last));
 }
 
 function grossMargin3yIncrease(row) {
   const key = 'gross_margin_3y_increase';
   const label = 'Gross Margin Δ 3Y (pp)';
-  if (isBlank(row.material_cost_pct_annual_series))
-    return naSector(key, label, 'no material-cost line (financials/IT/services)');
-  const mc = parseSeries(row.material_cost_pct_annual_series);
+  if (isBlank(row.material_cost_pct_annual_series) && isBlank(row.manufacturing_cost_pct_annual_series))
+    return naSector(key, label, 'no material/manufacturing-cost line (financials/IT/services)');
+  const cogs = cogsSeries(row.material_cost_pct_annual_series, row.manufacturing_cost_pct_annual_series);
   const lb = CONFIG.grossMargin.increaseLookbackYears;
-  if (mc.length < lb + 1) return naData(key, label, `need ≥${lb + 1} annual points, have ${mc.length}`);
-  const mcLatest = mc[mc.length - 1];
-  const mcAgo = mc[mc.length - 1 - lb];
-  if (!saneMc(mcLatest) || !saneMc(mcAgo)) return naData(key, label, 'material-cost % out of range — gross margin unreliable');
-  return raw(key, label, round1((100 - mcLatest) - (100 - mcAgo)));
+  if (cogs.length < lb + 1) return naData(key, label, `need ≥${lb + 1} annual points, have ${cogs.length}`);
+  const cLatest = cogs[cogs.length - 1];
+  const cAgo = cogs[cogs.length - 1 - lb];
+  if (!saneMc(cLatest) || !saneMc(cAgo)) return naData(key, label, 'cost % out of range — gross margin unreliable');
+  return raw(key, label, round1((100 - cLatest) - (100 - cAgo)));
 }
 
 // ─────────────────────────── pass / fail ───────────────────────────────────
@@ -215,12 +228,12 @@ function yoySalesGrowth12q(row) {
 function yoyGrossMargin12q(row) {
   const key = 'yoy_gross_margin_12q';
   const label = 'YoY Gross Margin (12Q)';
-  if (isBlank(row.material_cost_pct_qtr_series))
-    return naSector(key, label, 'no material-cost line (financials/IT/services)');
+  if (isBlank(row.material_cost_pct_qtr_series) && isBlank(row.manufacturing_cost_pct_qtr_series))
+    return naSector(key, label, 'no material/manufacturing-cost line (financials/IT/services)');
   const c = CONFIG.yoyGrossMargin12q;
-  const mc = parseSeries(row.material_cost_pct_qtr_series);
+  const mc = cogsSeries(row.material_cost_pct_qtr_series, row.manufacturing_cost_pct_qtr_series);
   if (mc.length < c.minQuarters) return naData(key, label, `need ≥${c.minQuarters} quarters, have ${mc.length}`);
-  if (mc.some((x) => !saneMc(x))) return naData(key, label, 'material-cost % out of range — gross margin unreliable');
+  if (mc.some((x) => !saneMc(x))) return naData(key, label, 'cost % out of range — gross margin unreliable');
 
   const gm = mc.map((x) => 100 - x);
   const latest = gm[gm.length - 1];

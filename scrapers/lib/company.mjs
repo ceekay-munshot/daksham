@@ -172,6 +172,13 @@ export function parseCompanyPage(html, { url } = {}) {
     findRow(quarters, /material cost/),
     { last: 12 }
   );
+  // Manufacturing (power/fuel/conversion) cost — the dominant COGS line for
+  // utilities & heavy manufacturers, where material cost alone is near-zero.
+  const manufacturing_cost_pct_qtr_series = seriesValues(
+    quarters,
+    findRow(quarters, /manufacturing cost/),
+    { last: 12 }
+  );
 
   // Annual P&L (skip TTM column).
   const revenue_series = seriesValues(pl, findRow(pl, /sales|revenue/), { dropTtm: true });
@@ -179,6 +186,11 @@ export function parseCompanyPage(html, { url } = {}) {
   const material_cost_pct_annual_series = seriesValues(
     pl,
     findRow(pl, /material cost/),
+    { dropTtm: true }
+  );
+  const manufacturing_cost_pct_annual_series = seriesValues(
+    pl,
+    findRow(pl, /manufacturing cost/),
     { dropTtm: true }
   );
 
@@ -247,10 +259,12 @@ export function parseCompanyPage(html, { url } = {}) {
 
     sales_qtr_series,
     material_cost_pct_qtr_series,
+    manufacturing_cost_pct_qtr_series,
 
     revenue_series,
     opm_series,
     material_cost_pct_annual_series,
+    manufacturing_cost_pct_annual_series,
 
     cfo_series,
 
