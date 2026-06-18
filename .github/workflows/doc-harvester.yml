@@ -76,6 +76,16 @@ jobs:
           DEBUG_DUMP_HTML: ${{ inputs.debug_dump_html }}
         run: node scrapers/doc-harvester.mjs
 
+      # When debugging, expose the raw BSE announcement JSON + page HTML so the BSE
+      # fallback's response shape can be verified (BSE can't be reached locally).
+      - name: Upload debug dump (BSE JSON + page HTML)
+        if: ${{ always() && inputs.debug_dump_html }}
+        uses: actions/upload-artifact@v5
+        with:
+          name: harvest-debug
+          if-no-files-found: ignore
+          path: cache/docs/_debug/
+
       # Refresh the committed, compressed corpus snapshot — the durable fallback
       # on top of actions/cache (git never evicts). Reproducible tar means no
       # commit when the corpus is unchanged. Success-only so a failed/partial run
