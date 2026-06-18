@@ -105,6 +105,65 @@ function block(i, r, why, ev, qual, moat, news, manifest) {
   return L.join('\n');
 }
 
+// ── Markdown → standalone HTML (only the constructs this file emits) ─────────
+const escH = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+function inlineH(s) {
+  return escH(s)
+    .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
+    .replace(/(^|[\s(])_(.+?)_/g, '$1<i>$2</i>')
+    .replace(/(https?:\/\/[^\s)]+)/g, (u) => `<a href="${u}" target="_blank" rel="noopener">${/AnnPdfOpen|\.pdf/i.test(u) ? 'Open PDF ↗' : /screener/i.test(u) ? 'Open on Screener ↗' : u}</a>`)
+    .replace(/☐/g, '<input type="checkbox">')
+    .replace(/✅/g, '<span class="ok">✓</span>').replace(/❌/g, '<span class="no">✗</span>');
+}
+function tableH(rows) {
+  const cells = (r) => r.replace(/^\||\|$/g, '').split('|').map((c) => c.trim());
+  const head = cells(rows[0]);
+  const sIdx = head.findIndex((h) => /screener says/i.test(h));
+  const cIdx = head.findIndex((h) => /✗/.test(h));
+  const th = head.map((h) => `<th>${inlineH(h)}</th>`).join('');
+  const body = rows.slice(2).map((r) => {
+    const cs = cells(r);
+    return `<tr>${cs.map((c, j) => {
+      if (!c && j === sIdx) return '<td><input type="text" class="fill" placeholder="from Screener"></td>';
+      if (!c && j === cIdx) return '<td style="text-align:center"><input type="checkbox"></td>';
+      return `<td>${inlineH(c)}</td>`;
+    }).join('')}</tr>`;
+  }).join('');
+  return `<table><thead><tr>${th}</tr></thead><tbody>${body}</tbody></table>`;
+}
+function mdToHtml(md) {
+  const lines = md.split('\n');
+  const out = [];
+  for (let i = 0; i < lines.length;) {
+    const ln = lines[i];
+    if (/^### /.test(ln)) { out.push(`<h3>${inlineH(ln.slice(4))}</h3>`); i++; }
+    else if (/^# /.test(ln)) { out.push(`<h1>${inlineH(ln.slice(2))}</h1>`); i++; }
+    else if (/^\|/.test(ln)) { const t = []; while (i < lines.length && /^\|/.test(lines[i])) t.push(lines[i++]); out.push(tableH(t)); }
+    else if (/^- /.test(ln)) { const it = []; while (i < lines.length && /^- /.test(lines[i])) it.push(`<li>${inlineH(lines[i++].slice(2))}</li>`); out.push(`<ul>${it.join('')}</ul>`); }
+    else if (/^> /.test(ln)) { out.push(`<blockquote>${inlineH(ln.slice(2))}</blockquote>`); i++; }
+    else if (/^---/.test(ln)) { out.push('<hr>'); i++; }
+    else if (ln.trim() === '') { i++; }
+    else { out.push(`<p>${inlineH(ln)}</p>`); i++; }
+  }
+  return out.join('\n');
+}
+const htmlDoc = (body) => `<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Daksham — verification worksheet</title>
+<style>
+  body{font:15px/1.55 -apple-system,Segoe UI,Roboto,Arial,sans-serif;max-width:900px;margin:24px auto;padding:0 16px;color:#1f2733}
+  h1{font-size:24px;margin:0 0 4px} h3{margin:30px 0 6px;font-size:17px;border-top:2px solid #eee;padding-top:18px}
+  table{border-collapse:collapse;width:100%;margin:10px 0} th,td{border:1px solid #dde2ea;padding:6px 10px;text-align:left;font-size:14px}
+  th{background:#f5f7fb} a{color:#3949ab;font-weight:600} a:visited{color:#5b6bbf}
+  blockquote{margin:4px 0 10px;padding:6px 12px;border-left:3px solid #cbd5e1;background:#f8fafc;color:#475569;font-size:14px}
+  ul{margin:6px 0;padding-left:20px} .ok{color:#16a34a;font-weight:700}.no{color:#dc2626;font-weight:700}
+  input[type=checkbox]{width:16px;height:16px;vertical-align:middle} input.fill{width:110px;padding:2px 6px} hr{border:none}
+  .tip{background:#eef2ff;border:1px solid #c7d2fe;padding:10px 14px;border-radius:8px;font-size:14px}
+</style></head><body>
+<p class="tip">Tick the boxes as you go. Click <b>Open on Screener</b> to check the numbers (type what you see into the yellow box), and <b>Open PDF</b> to confirm each AI quote. When finished, <b>Ctrl+P → Save as PDF</b> keeps a record.</p>
+${body}
+</body></html>`;
+
 function main() {
   const companies = rd('daksham-companies.json') || [];
   const qualC = (rd('daksham-qualitative.json') || {}).companies || {};
@@ -156,10 +215,14 @@ function main() {
 
   const md = out.join('\n');
   const file = path.join(ROOT, 'verification-worksheet.md');
+  const htmlFile = path.join(ROOT, 'verification-worksheet.html');
   writeFileSync(file, `${md}\n`);
-  console.log(`✅ Worksheet written: ${file}`);
+  writeFileSync(htmlFile, htmlDoc(mdToHtml(md)));
+  console.log('✅ Worksheet written:');
+  console.log(`   • ${htmlFile}   ← double-click to open in your browser (recommended)`);
+  console.log(`   • ${file}   (markdown)`);
   console.log(`   ${chosen.length} companies — ${chosen.map((c) => c.r.slug).join(', ')}`);
-  console.log(`   (re-run with --seed N for a different sample, --n N for size)`);
+  console.log('   (re-run with --seed N for a different sample, --n N for size)');
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main();
