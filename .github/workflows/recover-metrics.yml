@@ -1,0 +1,66 @@
+name: Recover crawl data from artifact
+
+# A 2h company-metrics crawl whose final push got rejected still uploaded its
+# data as an artifact. This one-shot job downloads that artifact and commits it —
+# so the crawl isn't wasted and you don't have to re-run the 2h job. ~1 minute.
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "The Company-metrics run ID whose artifact to recover (e.g. 27807647265)."
+        required: true
+      artifact:
+        description: "Artifact name."
+        required: false
+        default: "daksham-companies"
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: recover-metrics
+  cancel-in-progress: false
+
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Download the crawl artifact (from the other run)
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.artifact }}
+          run-id: ${{ inputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: recovered
+
+      - name: Place files + commit (with rebase-retry)
+        run: |
+          set -e
+          echo "Recovered tree:"; find recovered -type f | head
+          # Find each file wherever the artifact placed it, copy into public/data/.
+          for f in daksham-companies.json daksham-companies.csv companies-metadata.json; do
+            src="$(find recovered -name "$f" | head -1)"
+            [ -n "$src" ] && cp "$src" "public/data/$f" || { echo "MISSING in artifact: $f"; exit 1; }
+          done
+
+          BR="${{ github.ref_name }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/data/daksham-companies.json public/data/daksham-companies.csv public/data/companies-metadata.json
+          if git diff --cached --quiet; then
+            echo "No changes — the artifact matches what's already committed."
+            exit 0
+          fi
+          git commit -m "data: recover company metrics from run ${{ inputs.run_id }} [skip ci]"
+          for i in 1 2 3 4 5; do
+            if git push origin "HEAD:$BR"; then echo "pushed"; exit 0; fi
+            echo "push attempt $i rejected — fetching + rebasing, then retrying"
+            git fetch origin "$BR"
+            git rebase "origin/$BR"
+            sleep $((2 ** i))
+          done
+          echo "push failed after 5 attempts"; exit 1
