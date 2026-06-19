@@ -223,3 +223,18 @@ test('gross margin: subtracts material + manufacturing cost (the CESC 99% bug)',
   // both cost lines absent (financials / IT / services) → NA
   assert.equal(P({ stock_pe: '30' }).gross_margin_latest.verdict, 'NA');
 });
+
+test('financials & asset-light: Sales/FA + EBITDA are NA, not scored (the bank bug)', () => {
+  // a financial — asset turnover & EBITDA are meaningless → NA
+  const bank = P({ broad_sector: 'Financial Services', revenue_series: '100|110|120', net_block_series: '5|5|5', opm_series: '10|12' });
+  assert.equal(bank.sales_fa_below_0_8x.verdict, 'NA');
+  assert.equal(bank.sales_fa_vs_peers.verdict, 'NA');
+  assert.equal(bank.ebitda_gt_110_sales.verdict, 'NA');
+  // asset-light non-financial (Sales/FA ~240) → NA on the under-utilised-capacity thesis
+  const trader = P({ broad_sector: 'Services', revenue_series: '1000|1100|1200', net_block_series: '5|5|5' });
+  assert.equal(trader.sales_fa_below_0_8x.verdict, 'NA');
+  assert.match(trader.sales_fa_below_0_8x.note, /asset-light/);
+  // a genuine asset-intensive manufacturer is still scored
+  const mfr = P({ revenue_series: '100|100|100', net_block_series: '20|20|40' }); // Sales/FA 5,5,2.5
+  assert.ok(['PASS', 'FAIL'].includes(mfr.sales_fa_below_0_8x.verdict));
+});

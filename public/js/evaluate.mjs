@@ -106,6 +106,13 @@ export const psRatio = (x) => {
   const n = Number(x);
   return x !== '' && x != null && Number.isFinite(n) && n >= 0 && n <= MAX_PS ? n : null;
 };
+// Financials (banks / NBFCs / insurers) run a balance-sheet business — "EBITDA"
+// and fixed-asset turnover aren't meaningful for them, so those signals are NA.
+const isFinancial = (row) => /financ|\bbank|insur|nbfc/i.test([row.broad_sector, row.sector, row.industry].join(' '));
+// Sales/Fixed-Assets above this means net block is immaterial (asset-light:
+// trading / distribution / services) — the under-utilised-capacity thesis behind
+// the Sales/FA signals doesn't apply there, so they're NA rather than a verdict.
+const ASSET_LIGHT_SFA = 20;
 const growthPct = (r) => `${(r * 100).toFixed(1)}%`; // r is a ratio (0.12 → "12.0%")
 const pctVal = (x) => `${x.toFixed(1)}%`; // x is already a percent (62.3 → "62.3%")
 const signed = (x) => `${x >= 0 ? '+' : ''}${x.toFixed(2)}`;
@@ -264,6 +271,7 @@ function cfoRising3y(row) {
 function ebitdaGt110Sales(row) {
   const key = 'ebitda_gt_110_sales';
   const label = 'EBITDA Growth > 1.1× Sales';
+  if (isFinancial(row)) return naSector(key, label, 'EBITDA is not a meaningful metric for financials');
   const rev = parseSeries(row.revenue_series);
   const opm = parseSeries(row.opm_series);
   if (rev.length < 2) return naData(key, label, `need ≥2 annual revenue, have ${rev.length}`);
@@ -292,6 +300,7 @@ function ebitdaGt110Sales(row) {
 function salesFaBelow(row) {
   const key = 'sales_fa_below_0_8x';
   const label = 'Sales/FA below 0.8× 3Y avg';
+  if (isFinancial(row)) return naSector(key, label, 'asset-turnover thesis N/A for financials');
   const c = CONFIG.salesFaBelow;
   const rev = parseSeries(row.revenue_series);
   const nb = parseSeries(row.net_block_series);
@@ -306,6 +315,7 @@ function salesFaBelow(row) {
   const lastN = sfa.slice(-c.meanYears);
   const mean = lastN.reduce((a, x) => a + x, 0) / lastN.length;
   const latest = sfa[sfa.length - 1];
+  if (latest > ASSET_LIGHT_SFA) return naSector(key, label, 'asset-light — fixed assets immaterial to the model');
   const pass = latest < c.factor * mean;
   return passFail(
     key,
@@ -384,10 +394,11 @@ function latestSfa(row) {
 export function computeIndustryMedians(companies) {
   const groups = {};
   for (const c of companies || []) {
+    if (isFinancial(c)) continue; // financials don't define "normal" asset turnover
     const ind = String(c.industry || '').trim();
     if (!ind) continue;
     const sfa = latestSfa(c);
-    if (sfa == null) continue;
+    if (sfa == null || sfa > ASSET_LIGHT_SFA) continue; // asset-light outliers skew the median
     (groups[ind] ||= []).push(sfa);
   }
   const out = {};
@@ -402,9 +413,11 @@ export function computeIndustryMedians(companies) {
 function salesFaVsPeers(row, medians) {
   const key = 'sales_fa_vs_peers';
   const label = 'Sales/FA below industry peers';
+  if (isFinancial(row)) return naSector(key, label, 'asset-turnover thesis N/A for financials');
   const c = CONFIG.salesFaVsPeers;
   const sfa = latestSfa(row);
   if (sfa == null) return naData(key, label, 'company Sales/FA unavailable');
+  if (sfa > ASSET_LIGHT_SFA) return naSector(key, label, 'asset-light — fixed assets immaterial to the model');
   const peer = medians && medians[String(row.industry || '').trim()];
   if (!peer || peer.count < c.minPeers) {
     return naData(key, label, `too few industry peers for a reliable median (need ≥${c.minPeers})`);
