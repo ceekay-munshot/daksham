@@ -81,13 +81,25 @@ jobs:
           path: public/data/debug/
 
       - name: Commit company metrics to public/data/
+        if: ${{ always() }}
         run: |
+          set -e
+          BR="${{ github.ref_name }}"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add public/data/daksham-companies.json public/data/daksham-companies.csv public/data/companies-metadata.json
           if git diff --cached --quiet; then
             echo "No changes to company metrics; nothing to commit."
-          else
-            git commit -m "data: refresh company metrics [skip ci]"
-            git push origin HEAD:${{ github.ref_name }}
+            exit 0
           fi
+          git commit -m "data: refresh company metrics [skip ci]"
+          # Retry with rebase — a ~2h crawl will almost always race another push
+          # to main (cron data commits), and these files don't conflict with them.
+          for i in 1 2 3 4 5; do
+            if git push origin "HEAD:$BR"; then echo "pushed"; exit 0; fi
+            echo "push attempt $i rejected — fetching + rebasing, then retrying"
+            git fetch origin "$BR"
+            git rebase "origin/$BR"
+            sleep $((2 ** i))
+          done
+          echo "push failed after 5 attempts"; exit 1
