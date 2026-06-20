@@ -42,8 +42,9 @@ async function load() {
   let moat = null;
   let docsManifest = null;
   let news = null;
+  let qverify = null;
   try {
-    [companies, liquid, companiesMeta, universeMeta, qual, moat, docsManifest, news] = await Promise.all([
+    [companies, liquid, companiesMeta, universeMeta, qual, moat, docsManifest, news, qverify] = await Promise.all([
       fetch('data/daksham-companies.json').then((r) => {
         if (!r.ok) throw new Error('companies');
         return r.json();
@@ -55,6 +56,7 @@ async function load() {
       fetch('data/daksham-industry.json').then((r) => (r.ok ? r.json() : null)).catch(() => null),
       fetch('data/docs-manifest.json').then((r) => (r.ok ? r.json() : null)).catch(() => null),
       fetch('data/daksham-news.json').then((r) => (r.ok ? r.json() : null)).catch(() => null),
+      fetch('data/daksham-qualitative-verify.json').then((r) => (r.ok ? r.json() : null)).catch(() => null),
     ]);
   } catch (err) {
     return errorState();
@@ -77,6 +79,8 @@ async function load() {
   if (moat && moat.companies) for (const [slug, v] of Object.entries(moat.companies)) moatBySlug.set(slug, v);
   const newsBySlug = new Map(); // third-party news lens, joined by slug
   if (news && news.companies) for (const [slug, v] of Object.entries(news.companies)) newsBySlug.set(slug, v);
+  const verifyBySlug = new Map(); // source-verifier results, joined by slug
+  if (qverify && qverify.companies) for (const [slug, v] of Object.entries(qverify.companies)) verifyBySlug.set(slug, v);
   state.qualMeta = qual ? { generated_at: qual.generated_at, provider: qual.provider, model: qual.model, dry_run: qual.dry_run } : null;
   const docs = docsManifest && typeof docsManifest === 'object' ? docsManifest : {};
 
@@ -85,6 +89,14 @@ async function load() {
     const rec = full ? enrich(full) : enrichPending(row);
     const q = qualBySlug.get(rec.slug);
     rec.qual = q && q.params ? q : null;
+    // Merge the source-verifier result onto each qual param (verified flag + the
+    // exact supporting quote it grounded the read in).
+    const vf = verifyBySlug.get(rec.slug);
+    if (rec.qual && vf && vf.params) {
+      for (const [k, r] of Object.entries(vf.params)) {
+        if (rec.qual.params[k]) { rec.qual.params[k].verified = r.verified; rec.qual.params[k].quote = r.quote; }
+      }
+    }
     rec.qualReal = rec.qual ? Object.values(rec.qual.params).filter((p) => p.verdict !== 'NA').length : 0;
     const m = moatBySlug.get(rec.slug);
     rec.moat = m && m.factors ? m : null;

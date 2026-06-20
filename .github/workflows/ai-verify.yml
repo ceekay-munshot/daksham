@@ -1,0 +1,97 @@
+name: AI source-verifier
+
+# Quality pass — fact-checks the qualitative reads against their own source
+# excerpts (an exact supporting quote per claim), flagging anything it can't
+# ground. Uses the idle free-tier capacity now that extraction is caught up.
+# Writes daksham-qualitative-verify.json. Crash-resumable; 100% free.
+on:
+  workflow_dispatch:
+    inputs:
+      companies:
+        description: "Comma-separated slugs. Blank = all companies with a non-NA read."
+        required: false
+        default: ""
+      max_companies:
+        description: "Cap this run (blank = all). Set 3-5 for a smoke test."
+        required: false
+        default: ""
+      provider:
+        description: "Force a provider (blank = round-robin every key set)."
+        required: false
+        default: ""
+      rpm:
+        description: "Requests/min throttle per provider."
+        required: false
+        default: "10"
+      force:
+        description: "Re-verify even already-checked companies."
+        type: boolean
+        required: false
+        default: false
+  # Daily, after the qualitative extraction settles.
+  schedule:
+    - cron: "0 8 * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ai-verify
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
+      MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Restore document corpus (read-only)
+        uses: actions/cache/restore@v4
+        with:
+          path: cache/docs
+          key: ai-verify-readonly-${{ github.run_id }}
+          restore-keys: |
+            docs-
+
+      - name: Ensure corpus present (cache or committed archive)
+        run: node scrapers/corpus-archive.mjs ensure
+
+      - name: Verify qualitative reads
+        env:
+          COMPANIES: ${{ inputs.companies }}
+          MAX_COMPANIES: ${{ inputs.max_companies }}
+          PROVIDER: ${{ inputs.provider }}
+          RPM: ${{ inputs.rpm }}
+          FORCE: ${{ inputs.force }}
+        run: node scrapers/ai-verify.mjs
+
+      - name: Commit verification data
+        if: ${{ always() && github.ref_name == github.event.repository.default_branch }}
+        run: |
+          set -e
+          BR="${{ github.event.repository.default_branch }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/data/daksham-qualitative-verify.json
+          if git diff --cached --quiet; then echo "No verification changes."; exit 0; fi
+          git commit -m "AI source-verifier ($(date -u +%F))"
+          for i in 1 2 3 4 5; do
+            if git push origin "HEAD:$BR"; then echo "pushed"; exit 0; fi
+            echo "push attempt $i rejected — fetch + rebase, retry"
+            git fetch origin "$BR"; git rebase "origin/$BR"; sleep $((2 ** i))
+          done
+          echo "push failed after 5 attempts"; exit 1

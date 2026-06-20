@@ -231,6 +231,8 @@ function qualRow(p, rec) {
   let main = `<div class="prow-label">${esc(p.label)}</div>`;
   if (p.value) main += `<div class="prow-subval">${esc(String(p.value))}</div>`;
   if (p.note) main += `<div class="prow-note">${esc(p.note)}</div>`;
+  // The exact sentence the source-verifier grounded the read in (best evidence).
+  if (p.verdict !== 'NA' && p.quote) main += `<div class="qverify-quote">“${esc(p.quote)}”</div>`;
   const meta = [];
   if (p.verdict !== 'NA' && p.source) {
     const url = docLink(rec, p.source);
@@ -240,6 +242,9 @@ function qualRow(p, rec) {
         : `<span class="qmeta-src">${esc(p.source)}</span>`
     );
   }
+  // Verifier badge — only when the verifier has run on this read.
+  if (p.verdict !== 'NA' && p.verified === true) meta.push('<span class="qverify ok" title="An independent model found the exact supporting sentence in the source">✓ verified</span>');
+  else if (p.verdict !== 'NA' && p.verified === false) meta.push('<span class="qverify warn" title="The verifier could not ground this in the source — treat with caution">⚠ unverified</span>');
   if (p.verdict !== 'NA' && p.confidence) meta.push(`<span class="qmeta-conf qconf-${esc(p.confidence)}">${esc(p.confidence)} confidence</span>`);
   if (meta.length) main += `<div class="prow-meta">${meta.join('')}</div>`;
   return `<div class="prow">
