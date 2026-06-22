@@ -17,7 +17,9 @@ export const NEWS_SYSTEM_PROMPT =
   'judge the TREND implied by recent coverage and score it so HIGHER = MORE FAVORABLE for the business. ' +
   'Use ONLY the headlines provided. CRITICAL: news rarely touches every factor — if a factor is not ' +
   'actually evidenced by the headlines, set trend "NA" and do NOT invent a score. Absence of coverage is ' +
-  '"NA", never favorable. Ignore headlines about unrelated namesakes. Return ONLY a JSON object matching the schema.';
+  '"NA", never favorable. Ignore headlines about unrelated namesakes. ALSO produce a PULSE: a plain 1–2 ' +
+  'sentence summary of the most material recent developments, an overall sentiment for the business, and ' +
+  'up to 4 event tags — this is what news is best at. Return ONLY a JSON object matching the schema.';
 
 const FIELD_RULES =
   `Factors (score the TREND implied by the news, higher = more favorable):\n${FACTORS.map((f) => `- ${f.key}: improving = ${f.favorable}; worsening = the opposite.`).join('\n')}\n\n` +
@@ -25,19 +27,59 @@ const FIELD_RULES =
   '{score "0".."5", trend, note (one sentence citing the headline evidence), confidence}. Most factors ' +
   'will be "NA" from headlines alone — that is expected; only score a factor the news actually evidences.';
 
+const PULSE_RULES =
+  'Then "pulse": { "summary": one or two plain sentences on the most material recent developments (or "" if ' +
+  'the headlines are only noise / unrelated namesakes), "sentiment": "positive" | "neutral" | "negative" for ' +
+  'the business, "events": up to 4 tags from [order_win, expansion, results, regulatory, litigation, ' +
+  'management, fundraise, rating, demand, other] }.';
+
 function jsonSkeleton() {
   return `{\n${FACTORS.map(
     (f) => `  "${f.key}": {"score": "0".."5", "trend": "improving"|"stable"|"worsening"|"NA", "note": "string", "confidence": "high"|"medium"|"low"}`
-  ).join(',\n')}\n}`;
+  ).join(',\n')},\n  "pulse": {"summary": "string", "sentiment": "positive"|"neutral"|"negative", "events": ["tag", ...]}\n}`;
 }
 
 export function newsPrompt(companyName, industry, inputText) {
   return (
-    `Company: ${companyName}\nIndustry: ${industry || 'n/a'}\n\n${FIELD_RULES}\n\n` +
+    `Company: ${companyName}\nIndustry: ${industry || 'n/a'}\n\n${FIELD_RULES}\n\n${PULSE_RULES}\n\n` +
     `--- RECENT NEWS HEADLINES (external media, newest first) ---\n${inputText}\n--- END ---\n\n` +
-    `Return ONLY this JSON shape, all 8 keys:\n${jsonSkeleton()}`
+    `Return ONLY this JSON (the 8 factor keys + "pulse"):\n${jsonSkeleton()}`
   );
 }
+
+// ── PULSE: the digestible read the moat-factor lens throws away ───────────────
+export const NEWS_SENTIMENTS = ['positive', 'neutral', 'negative'];
+export const NEWS_EVENTS = ['order_win', 'expansion', 'results', 'regulatory', 'litigation', 'management', 'fundraise', 'rating', 'demand', 'other'];
+
+// Shape the model's pulse defensively; null when there's no real summary.
+export function shapePulse(raw) {
+  const p = raw && typeof raw === 'object' ? raw : {};
+  const summary = String(p.summary || '').replace(/\s+/g, ' ').trim().slice(0, 400);
+  if (!summary) return null;
+  const sentiment = NEWS_SENTIMENTS.includes(p.sentiment) ? p.sentiment : 'neutral';
+  const events = Array.isArray(p.events) ? [...new Set(p.events.filter((e) => NEWS_EVENTS.includes(e)))].slice(0, 4) : [];
+  return { summary, sentiment, events };
+}
+
+// Combined call schema: the 8 reused factors + the pulse object.
+export const NEWS_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: [...RESPONSE_SCHEMA.required, 'pulse'],
+  properties: {
+    ...RESPONSE_SCHEMA.properties,
+    pulse: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['summary', 'sentiment', 'events'],
+      properties: {
+        summary: { type: 'string' },
+        sentiment: { type: 'string', enum: NEWS_SENTIMENTS },
+        events: { type: 'array', items: { type: 'string', enum: NEWS_EVENTS } },
+      },
+    },
+  },
+};
 
 // ── Google News RSS query + URL ──────────────────────────────────────────────
 // Quote the registered name for precision; the `when:Nd` operator bounds recency.

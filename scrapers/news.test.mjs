@@ -8,8 +8,25 @@ import {
   newsRssUrl,
   newsPrompt,
   shapeFactors,
+  shapePulse,
+  NEWS_SCHEMA,
   FACTOR_KEYS,
 } from './lib/news.mjs';
+
+test('shapePulse: clean summary, clamped sentiment + events, null when empty', () => {
+  const p = shapePulse({ summary: '  Won a big order; expanding capacity.  ', sentiment: 'positive', events: ['order_win', 'expansion', 'bogus', 'expansion'] });
+  assert.equal(p.summary, 'Won a big order; expanding capacity.');
+  assert.equal(p.sentiment, 'positive');
+  assert.deepEqual(p.events, ['order_win', 'expansion']); // unknown dropped, deduped, capped
+  assert.equal(shapePulse({ summary: '' }), null); // no summary → no pulse
+  assert.equal(shapePulse({ summary: 'x', sentiment: 'wat' }).sentiment, 'neutral'); // bad enum → neutral
+});
+
+test('NEWS_SCHEMA: the 8 factors plus a pulse', () => {
+  assert.ok(NEWS_SCHEMA.required.includes('pulse'));
+  assert.ok(NEWS_SCHEMA.required.includes('competition'));
+  assert.equal(NEWS_SCHEMA.properties.pulse.properties.sentiment.enum.length, 3);
+});
 
 // A trimmed Google News RSS feed: "Headline - Source" titles, RFC-822 dates, a
 // <source> element, and a duplicate item (same headline) to exercise dedup.

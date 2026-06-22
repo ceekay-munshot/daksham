@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url';
 
 import {
   newsRssUrl, parseNewsRss, buildNewsInput, newsPrompt,
-  shapeFactors, naAllFactors, RESPONSE_SCHEMA, NEWS_SYSTEM_PROMPT, FACTORS,
+  shapeFactors, shapePulse, naAllFactors, NEWS_SCHEMA, NEWS_SYSTEM_PROMPT, FACTORS,
 } from './lib/news.mjs';
 import { createPool, runItem, rateLimiter, poolLabel, poolSummary } from './lib/llm-runner.mjs';
 
@@ -158,14 +158,15 @@ async function main() {
     }
 
     log(`[${i}] ${slug} (${name}) — ${count} headlines (latest ${latest})`);
-    const res = await runItem(pool, { system: NEWS_SYSTEM_PROMPT, user: newsPrompt(name, indBySlug.get(slug) || '', text), schema: RESPONSE_SCHEMA }, cfg, log);
+    const res = await runItem(pool, { system: NEWS_SYSTEM_PROMPT, user: newsPrompt(name, indBySlug.get(slug) || '', text), schema: NEWS_SCHEMA }, cfg, log);
     if (res.kind === 'stop') { writeJSON(OUT_PATH, out); stopped = true; log('\n⚠ All providers exhausted — progress saved, re-run to resume.'); break; }
     if (res.kind === 'transient') { stats.transient += 1; continue; } // leave for resume
 
     const factors = res.kind === 'failed' ? naAllFactors('Extraction failed') : shapeFactors(res.parsed);
+    const pulse = res.kind === 'failed' ? null : shapePulse(res.parsed.pulse); // the digestible "what's the recent news" read
     // Keep the headlines that drove the read, so the dossier can show "what news".
     const headlines = (used || []).slice(0, 10).map((h) => ({ title: h.title, source: h.source, date: h.date, url: h.link }));
-    out.companies[slug] = { name, factors, headlines, meta: { items: count, latest, fetched_at: new Date().toISOString(), provider: res.provider } };
+    out.companies[slug] = { name, factors, pulse, headlines, meta: { items: count, latest, fetched_at: new Date().toISOString(), provider: res.provider } };
     res.kind === 'failed' ? (stats.failed += 1) : (stats.scored += 1);
     stats.items += count;
     writeJSON(OUT_PATH, out);

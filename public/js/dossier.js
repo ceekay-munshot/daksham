@@ -414,6 +414,36 @@ function moatHtml(rec) {
   </div>`;
 }
 
+// Recent News — the digestible third-party pulse (what the moat-factor lens drops):
+// a sentiment + event tags + a one-line summary, plus the actual headlines.
+function newsHtml(rec) {
+  const nw = rec.news;
+  const heads = (nw && nw.headlines) || [];
+  if (!nw || (!nw.pulse && !heads.length)) return ''; // nothing worth a section
+  const meta = nw.meta || {};
+  const sub = meta.latest ? `latest ${esc(meta.latest)}` : meta.items ? `${meta.items} headlines` : '';
+  const head = `<div class="dsection-head">
+    <span class="sec-ic" style="--sec-grad:linear-gradient(135deg,#6366f1,#4f46e5)"><i data-lucide="newspaper"></i></span>
+    <span class="dsection-title">Recent News · third-party</span>
+    ${sub ? `<span class="dsection-sub" title="Google News, newest first">${sub}</span>` : ''}
+  </div>`;
+
+  let pulse = '';
+  if (nw.pulse) {
+    const s = nw.pulse.sentiment || 'neutral';
+    const cls = s === 'positive' ? 'pulse-pos' : s === 'negative' ? 'pulse-neg' : 'pulse-neu';
+    const events = (nw.pulse.events || []).map((e) => `<span class="news-event">${esc(e.replace(/_/g, ' '))}</span>`).join('');
+    pulse = `<div class="news-pulse">
+      <div class="news-pulse-top"><span class="news-sent ${cls}">${esc(s)}</span>${events}</div>
+      <div class="news-pulse-sum">${esc(nw.pulse.summary)}</div>
+    </div>`;
+  }
+  const list = heads.length
+    ? `<ul class="news-list">${heads.slice(0, 8).map((h) => `<li><a href="${esc(h.url || '#')}" target="_blank" rel="noopener">${esc(h.title || '')}</a><span class="news-meta">${esc(h.source || '')}${h.date ? ` · ${esc(h.date)}` : ''}</span></li>`).join('')}</ul>`
+    : '<div class="news-list-soon">Headlines populate on the next news run.</div>';
+  return `<div class="dsection">${head}<div class="news-body">${pulse}${list}</div></div>`;
+}
+
 function heroSignals(params) {
   let pass = 0;
   let applicable = 0;
@@ -538,7 +568,7 @@ export function openDossier(rec) {
   }
 
   const store = { n: 0, map: {} };
-  const body = SECTIONS.map((s) => sectionHtml(s, rec, store)).join('') + qualHtml(rec) + moatHtml(rec);
+  const body = SECTIONS.map((s) => sectionHtml(s, rec, store)).join('') + qualHtml(rec) + moatHtml(rec) + newsHtml(rec);
   charts = store.map;
 
   elDossier.innerHTML = `
