@@ -126,7 +126,7 @@ async function main() {
   if (isMock) { lens.note = out.note = 'MOCK dry-run — synthetic scores. Set an API key for real extraction.'; }
   else { delete lens.note; delete out.note; }
 
-  const stats = { lensRun: 0, lensNA: 0, own: 0, ownNA: 0, upgraded: 0, failed: 0, transient: 0 };
+  const stats = { lensRun: 0, lensNA: 0, own: 0, ownNA: 0, upgraded: 0, peerFill: 0, failed: 0, transient: 0 };
   const t0 = Date.now();
   let stopped = false;
   const stop = () => { stopped = true; log('\n⚠ All providers exhausted/disabled — progress saved, re-run to resume.'); };
@@ -200,6 +200,14 @@ async function main() {
         stats.upgraded += 1;
         log(`  ${slug} — peer read upgraded → ${peerLevel} ${peerName}`);
         writeJSON(OUT_PATH, out);
+      } else if (peers.length && !(existing.peers && existing.peers.length)) {
+        // Backfill the peer list onto an older entry WITHOUT re-calling the model.
+        existing.peers = peers;
+        if (!existing.peer_level) existing.peer_level = peerLevel;
+        if (!existing.peer_name) existing.peer_name = peerName;
+        out.companies[slug] = existing;
+        stats.peerFill += 1;
+        writeJSON(OUT_PATH, out);
       } else {
         log(`  ${slug} — done, skip`);
       }
@@ -230,7 +238,7 @@ async function main() {
   console.log('\n──────── summary ────────');
   console.log(`providers      : ${poolSummary(pool)}`);
   console.log(`peer-group lens : ${stats.lensRun} scored, ${stats.lensNA} NA (no passages)`);
-  console.log(`company own     : ${stats.own} scored, ${stats.ownNA} no-passages, ${stats.upgraded} peer-upgraded, ${stats.failed} failed`);
+  console.log(`company own     : ${stats.own} scored, ${stats.ownNA} no-passages, ${stats.upgraded} peer-upgraded, ${stats.peerFill} peer-filled, ${stats.failed} failed`);
   if (stats.transient) console.log(`transient skips: ${stats.transient} (left for a later run)`);
   console.log(`cost           : ${isMock ? '$0 (offline mock)' : '$0 (free tiers — Gemini / Groq / Mistral / Cerebras)'}`);
   console.log(`elapsed        : ${secs}s`);
