@@ -108,44 +108,94 @@ function dump(name, content) {
   fs.writeFileSync(path.join(DEBUG_DIR, name), content);
 }
 
+const passCount = (page) => page.locator('input[type="password"]').count();
+
+// The "Thanks for being with us" announcement popup covers the nav on load. It
+// auto-dismisses (progress bar) but we hurry it along: Escape, then a corner
+// click on its backdrop. Classes are Next.js-hashed, so match by class-prefix.
+async function dismissAnnouncement(page) {
+  const backdrop = page.locator('[class*="announcementPopup_backdrop"], [class*="Popup_backdrop"], [class*="modalBackdrop"]');
+  for (let i = 0; i < 4; i += 1) {
+    if (!(await backdrop.count().catch(() => 0))) return;
+    await page.keyboard.press('Escape').catch(() => {});
+    await sleep(500);
+    await backdrop.first().click({ position: { x: 4, y: 4 }, force: true }).catch(() => {});
+    await sleep(700);
+  }
+}
+
+// Login is a nav element reading "Login" (hashed classes → match by class-prefix
+// / visible text). Click it and wait for the password field to render.
+async function openLoginForm(page) {
+  const tries = ['[class*="loginButton"]', 'button:has-text("Login")', 'a:has-text("Login")'];
+  for (const sel of tries) {
+    const loc = page.locator(sel);
+    const n = await loc.count().catch(() => 0);
+    for (let i = 0; i < n; i += 1) {
+      const el = loc.nth(i);
+      if (!(await el.isVisible().catch(() => false))) continue;
+      await el.click({ force: true }).catch(() => {});
+      await sleep(1800);
+      if (await passCount(page)) return true;
+    }
+  }
+  const byText = page.getByText('Login', { exact: true });
+  const n = await byText.count().catch(() => 0);
+  for (let i = 0; i < n; i += 1) {
+    const el = byText.nth(i);
+    if (!(await el.isVisible().catch(() => false))) continue;
+    await el.click({ force: true }).catch(() => {});
+    await sleep(1800);
+    if (await passCount(page)) return true;
+  }
+  return (await passCount(page)) > 0;
+}
+
 async function login(page, cfg) {
+  // /login just renders the homepage behind the marketing popup, so start there
+  // and open the login modal from the nav.
   for (let attempt = 1; ; attempt += 1) {
     try {
-      await page.goto(cfg.loginUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
+      await page.goto(cfg.base, { waitUntil: 'domcontentloaded', timeout: 60000 });
       break;
     } catch (err) {
-      if (attempt >= 3) throw new Error(`Could not reach Stockscans login after 3 attempts: ${err.message}`);
+      if (attempt >= 3) throw new Error(`Could not reach Stockscans after 3 attempts: ${err.message}`);
       await sleep(2000 * attempt);
     }
   }
-  await page.waitForSelector('input', { timeout: 20000 }).catch(() => {});
-  await sleep(1500); // let the SPA finish painting the form
+  await page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => {});
+  await sleep(2500); // SPA + announcement popup paint
+  await dismissAnnouncement(page);
+
+  const opened = await openLoginForm(page);
+  if (cfg.debug) {
+    dump('login-modal.html', await page.content());
+    await page.screenshot({ path: path.join(DEBUG_DIR, 'login-modal.png'), fullPage: true }).catch(() => {});
+  }
+  if (!opened) {
+    throw new Error('Could not open the login form (no password field after clicking Login). If sign-in is Google-only, see debug/stockscans/login-modal.html');
+  }
 
   const emailSel = await firstPresent(page, [
-    'input[type="email"]', 'input[name="email"]', 'input[name="username"]', 'input[autocomplete="username"]', 'input[type="text"]',
+    'input[type="email"]', 'input[name="email"]', 'input[autocomplete="username"]', 'input[name="username"]',
+    'input[type="text"]:not([placeholder*="Search" i]):not([placeholder*="stock" i])',
   ]);
-  const passSel = await firstPresent(page, ['input[type="password"]', 'input[name="password"]']);
-  if (!emailSel || !passSel) {
-    if (cfg.debug) { dump('login-page.html', await page.content()); await page.screenshot({ path: path.join(DEBUG_DIR, 'login-page.png') }).catch(() => {}); }
-    throw new Error('Login form fields not found — is the account email/password (not Google-only)? See debug/stockscans/login-page.html');
+  if (!emailSel) {
+    throw new Error('Login modal opened but no email/username field found. See debug/stockscans/login-modal.html');
   }
   await page.fill(emailSel, cfg.email);
-  await page.fill(passSel, cfg.password);
-  const btn = page
-    .locator('button[type="submit"], button:has-text("Sign in"), button:has-text("Sign In"), button:has-text("Log in"), button:has-text("Login"), button:has-text("Continue")')
-    .first();
-  if (await btn.count()) await btn.click();
-  else await page.press(passSel, 'Enter');
+  await page.fill('input[type="password"]', cfg.password);
+  await page.press('input[type="password"]', 'Enter'); // SPA login forms submit on Enter
 
   await page.waitForLoadState('networkidle', { timeout: 30000 }).catch(() => {});
-  await sleep(2000);
+  await sleep(3000);
 
-  const stillHasPassword = await page.locator('input[type="password"]').count();
-  const html = await page.content();
-  const loggedIn = !stillHasPassword || /logout|sign out|my account|profile/i.test(html);
-  if (cfg.debug) { dump('post-login.html', html); await page.screenshot({ path: path.join(DEBUG_DIR, 'post-login.png') }).catch(() => {}); }
-  if (!loggedIn) {
-    throw new Error('Login appears to have failed (password field still present, no account indicator). See debug/stockscans/post-login.html');
+  if (cfg.debug) {
+    dump('post-login.html', await page.content());
+    await page.screenshot({ path: path.join(DEBUG_DIR, 'post-login.png'), fullPage: true }).catch(() => {});
+  }
+  if (await passCount(page)) {
+    throw new Error('Login did not complete (password field still present after submit). Check STOCKSCANS_EMAIL / STOCKSCANS_PASSWORD, or see debug/stockscans/post-login.html');
   }
 }
 
