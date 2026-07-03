@@ -74,8 +74,9 @@ async function load() {
   let news = null;
   let qverify = null;
   let classification = null;
+  let bank = null;
   try {
-    [companies, liquid, companiesMeta, universeMeta, qual, moat, docsManifest, news, qverify, classification] = await Promise.all([
+    [companies, liquid, companiesMeta, universeMeta, qual, moat, docsManifest, news, qverify, classification, bank] = await Promise.all([
       fetch('data/daksham-companies.json').then((r) => {
         if (!r.ok) throw new Error('companies');
         return r.json();
@@ -89,6 +90,7 @@ async function load() {
       fetch('data/daksham-news.json').then((r) => (r.ok ? r.json() : null)).catch(() => null),
       fetch('data/daksham-qualitative-verify.json').then((r) => (r.ok ? r.json() : null)).catch(() => null),
       fetch('data/stockscans-classification.json').then((r) => (r.ok ? r.json() : null)).catch(() => null),
+      fetch('data/bank-metrics.json').then((r) => (r.ok ? r.json() : null)).catch(() => null),
     ]);
   } catch (err) {
     return errorState();
@@ -113,6 +115,8 @@ async function load() {
   if (news && news.companies) for (const [slug, v] of Object.entries(news.companies)) newsBySlug.set(slug, v);
   const verifyBySlug = new Map(); // source-verifier results, joined by slug
   if (qverify && qverify.companies) for (const [slug, v] of Object.entries(qverify.companies)) verifyBySlug.set(slug, v);
+  const bankBySlug = new Map(); // bank / NBFC operational metrics (lenders only), joined by slug
+  if (bank && bank.companies) for (const [slug, v] of Object.entries(bank.companies)) bankBySlug.set(slug, v);
   state.qualMeta = qual ? { generated_at: qual.generated_at, provider: qual.provider, model: qual.model, dry_run: qual.dry_run } : null;
   const docs = docsManifest && typeof docsManifest === 'object' ? docsManifest : {};
 
@@ -134,6 +138,8 @@ async function load() {
     rec.moat = m && m.factors ? m : null;
     const nw = newsBySlug.get(rec.slug);
     rec.news = nw && nw.factors ? nw : null; // third-party news read (own/peer's third column)
+    const bk = bankBySlug.get(rec.slug);
+    rec.bank = bk && (bk.gross_npa_pct != null || bk.financing_margin_pct != null) ? bk : null; // lenders only
     rec.docs = docs[rec.slug] || []; // [{type, period, source, ...}] for source links
     rec.asOf = companiesMeta && companiesMeta.generated_at; // Screener snapshot date (quantitative tier)
     return rec;
