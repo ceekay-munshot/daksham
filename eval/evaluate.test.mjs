@@ -130,6 +130,33 @@ test('sales_fa_vs_peers is no longer a deferred stub', () => {
   assert.notEqual(params.sales_fa_vs_peers.output_type, 'deferred');
 });
 
+test('sales_fa_vs_peers: prefers the Stockscans peer group, falls back to Screener', () => {
+  const co = (slug, screener, ss, rev, nb) => ({ slug, industry: screener, stockscans_industry: ss, revenue_series: String(rev), net_block_series: String(nb) });
+  // Screener "Auto" (7 members). Within it a fine Stockscans "Auto-2W" has 5
+  // (enough) and "Auto-Niche" has 2 (too few → must fall back to Screener Auto).
+  const U = [
+    co('A', 'Auto', 'Auto-2W', 200, 100), // sfa 2
+    co('B', 'Auto', 'Auto-2W', 300, 100), // 3
+    co('C', 'Auto', 'Auto-2W', 400, 100), // 4
+    co('D', 'Auto', 'Auto-2W', 500, 100), // 5
+    co('E', 'Auto', 'Auto-2W', 600, 100), // 6 → Auto-2W median 4, count 5
+    co('N1', 'Auto', 'Auto-Niche', 150, 100), // 1.5
+    co('N2', 'Auto', 'Auto-Niche', 250, 100), // 2.5 → Auto-Niche count 2 (< minPeers)
+  ];
+  const m = computeIndustryMedians(U);
+  assert.deepEqual(m['ss::Auto-2W'], { median_sfa: 4, count: 5 }); // Stockscans group, namespaced
+  assert.deepEqual(m.Auto, { median_sfa: 3, count: 7 }); // Screener group (all 7)
+  const v = (row) => evaluate(row, m).params.sales_fa_vs_peers;
+
+  const a = v(U[0]); // Auto-2W has ≥5 peers → uses the Stockscans median (4)
+  assert.equal(a.verdict, 'PASS'); // 2 < 0.9 × 4
+  assert.ok(a.note.includes('Stockscans'), a.note);
+
+  const n = v(U[5]); // Auto-Niche has 2 peers (< 5) → falls back to Screener Auto (3)
+  assert.equal(n.verdict, 'PASS'); // 1.5 < 0.9 × 3
+  assert.ok(n.note.includes('Screener'), n.note);
+});
+
 // ── promoter_trend_up (stable or rising; only a real decline fails) ─────────
 test('promoter_trend_up', () => {
   const K = 'promoter_trend_up';

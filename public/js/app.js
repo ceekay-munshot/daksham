@@ -40,20 +40,34 @@ const state = {
   filters: { search: '', sector: '', check: '', mcap: '', minSignals: 0, adtv: ADTV_FLOOR, industry: '' },
 };
 
-// Relabel each record's `industry` with its Stockscans industry (the finer,
-// client-preferred taxonomy) for the grid / dossier / industry filter, keeping
-// Screener's as `screenerIndustry`. The peer-median check deliberately stays on
-// Screener's broader grouping (see load()), so relabelling never moves a verdict.
-function relabelIndustry(records, classification) {
+// slug(UPPER) → Stockscans industry, from the classification file.
+function stockscansMap(classification) {
   const bySym = new Map();
   if (classification && classification.companies) {
     for (const [sym, v] of Object.entries(classification.companies)) {
       if (v && v.industry) bySym.set(String(sym).toUpperCase(), v.industry);
     }
   }
-  if (!bySym.size) return;
+  return bySym;
+}
+
+// Tag each raw company row with its Stockscans industry BEFORE the medians, so
+// the peer engine can build per-Stockscans-industry medians and evaluate() can
+// prefer them — with a Screener fallback for thin groups. Mutates in place.
+function tagStockscansIndustry(companies, ssMap) {
+  if (!ssMap.size) return;
+  for (const c of companies || []) {
+    const ind = ssMap.get(String(c.slug || '').toUpperCase());
+    if (ind) c.stockscans_industry = ind;
+  }
+}
+
+// Relabel each record's DISPLAYED `industry` to Stockscans (grid / dossier /
+// industry filter), keeping Screener's as `screenerIndustry`.
+function relabelIndustry(records, ssMap) {
+  if (!ssMap.size) return;
   for (const r of records) {
-    const ind = bySym.get(String(r.slug || '').toUpperCase());
+    const ind = ssMap.get(String(r.slug || '').toUpperCase());
     if (ind && ind !== r.industry) {
       r.screenerIndustry = r.industry;
       r.industry = ind;
@@ -96,8 +110,10 @@ async function load() {
     return errorState();
   }
 
-  // Industry SFA medians for the peer check — computed once over the full
-  // crawled set, then passed into every evaluate().
+  // Industry SFA medians for the peer check. Tag Stockscans industries first so
+  // the medians carry both taxonomies (Stockscans-preferred, Screener fallback).
+  const ssMap = stockscansMap(classification);
+  tagStockscansIndustry(companies, ssMap);
   state.medians = computeIndustryMedians(companies);
 
   // The current liquid set is the spine; join per-company metrics where crawled,
@@ -146,7 +162,7 @@ async function load() {
   });
   // Relabel the displayed / filterable industry to Stockscans (verdicts already
   // computed above on Screener grouping, so this is display-only).
-  relabelIndustry(state.records, classification);
+  relabelIndustry(state.records, ssMap);
   state.bySlug = new Map(state.records.map((r) => [r.slug, r]));
   const sample = state.records.find((r) => !r.pending);
   if (sample) for (const k of CHECK_KEYS) state.labels[k] = sample.params[k].label;

@@ -393,17 +393,22 @@ function latestSfa(row) {
 // industry return the median SFA + peer count. Compute once, pass into evaluate().
 export function computeIndustryMedians(companies) {
   const groups = {};
+  const add = (key, sfa) => {
+    if (key) (groups[key] ||= []).push(sfa);
+  };
   for (const c of companies || []) {
     if (isFinancial(c)) continue; // financials don't define "normal" asset turnover
-    const ind = String(c.industry || '').trim();
-    if (!ind) continue;
     const sfa = latestSfa(c);
     if (sfa == null || sfa > ASSET_LIGHT_SFA) continue; // asset-light outliers skew the median
-    (groups[ind] ||= []).push(sfa);
+    add(String(c.industry || '').trim(), sfa); // Screener grouping (plain key)
+    // Stockscans grouping under an `ss::` namespace so its names can't collide
+    // with Screener's — both taxonomies use "Cement", "Banks", etc.
+    const ss = String(c.stockscans_industry || '').trim();
+    if (ss) add('ss::' + ss, sfa);
   }
   const out = {};
-  for (const [ind, arr] of Object.entries(groups)) {
-    out[ind] = { median_sfa: median(arr), count: arr.length };
+  for (const [key, arr] of Object.entries(groups)) {
+    out[key] = { median_sfa: median(arr), count: arr.length };
   }
   return out;
 }
@@ -418,7 +423,16 @@ function salesFaVsPeers(row, medians) {
   const sfa = latestSfa(row);
   if (sfa == null) return naData(key, label, 'company Sales/FA unavailable');
   if (sfa > ASSET_LIGHT_SFA) return naSector(key, label, 'asset-light — fixed assets immaterial to the model');
-  const peer = medians && medians[String(row.industry || '').trim()];
+  // Prefer the finer Stockscans peer group when it's populated enough; fall back
+  // to Screener's broader grouping so coverage never regresses.
+  const m = medians || {};
+  const ss = String(row.stockscans_industry || '').trim();
+  let peer = ss ? m['ss::' + ss] : null;
+  let grouping = 'Stockscans';
+  if (!peer || peer.count < c.minPeers) {
+    peer = m[String(row.industry || '').trim()];
+    grouping = 'Screener';
+  }
   if (!peer || peer.count < c.minPeers) {
     return naData(key, label, `too few industry peers for a reliable median (need ≥${c.minPeers})`);
   }
@@ -428,7 +442,7 @@ function salesFaVsPeers(row, medians) {
     label,
     `${sfa.toFixed(2)} vs peer median ${peer.median_sfa.toFixed(2)}`,
     pass,
-    `pass if < ${c.ratio}× industry median (${peer.count} peers)`
+    `pass if < ${c.ratio}× ${grouping} industry median (${peer.count} peers)`
   );
 }
 
