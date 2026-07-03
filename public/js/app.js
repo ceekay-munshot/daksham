@@ -22,13 +22,22 @@ const debounce = (fn, ms) => {
 };
 const icons = () => window.lucide && window.lucide.createIcons();
 const $ = (id) => document.getElementById(id);
+const setText = (id, v) => {
+  const el = $(id);
+  if (el) el.textContent = v;
+};
+
+// ₹4 Cr / 30-day ADV is the data pipeline's hard liquidity floor: names below it
+// were never crawled, so the dashboard can tighten the liquid set ABOVE this
+// value live (client-side), but never below it. See bhavcopy-liquidity.mjs.
+const ADTV_FLOOR = 4;
 
 const state = {
   records: [],
   bySlug: new Map(),
   labels: {},
   sort: { key: 'passCount', dir: 'desc' },
-  filters: { search: '', sector: '', check: '', mcap: '', minSignals: 0 },
+  filters: { search: '', sector: '', check: '', mcap: '', minSignals: 0, adtv: ADTV_FLOOR },
 };
 
 // ── data load ───────────────────────────────────────────────────────────────
@@ -142,6 +151,7 @@ function enrich(row) {
     pb: N(row.pb),
     evEbitda: N(row.ev_ebitda),
     mcapSales: psRatio(row.mcap_to_sales),
+    adtv: N(row.adtv_30d_cr),
     passCount,
     applicable,
     pending: false,
@@ -181,28 +191,47 @@ function hydrateHero(liquidCount, cMeta, uMeta) {
     : 'Live verdicts';
 }
 
-function renderKpis() {
-  const recs = state.records;
+// Headline stats for the hero funnel + KPI band. Computed over whatever set is
+// passed: the full liquid spine at load, or the ADTV-gated subset once the
+// daily-value input is raised above the ₹4 Cr floor.
+function universeStats(recs) {
   const complete = recs.filter((r) => !r.pending);
   const sectors = new Set(recs.map((r) => r.sector).filter(Boolean)).size;
   const strong = complete.filter((r) => r.passCount >= 5).length;
   const avg = complete.length ? (complete.reduce((s, r) => s + r.passCount, 0) / complete.length).toFixed(1) : '0';
+  return { liquid: recs.length, sectors, strong, avg };
+}
 
+function renderKpis() {
+  const s = universeStats(state.records);
   const cards = [
-    { icon: 'building-2', num: groupIN(recs.length), label: 'Liquid companies', grad: 'linear-gradient(135deg,#6366f1,#4f46e5)', shadow: 'rgba(79,70,229,.45)' },
-    { icon: 'layout-grid', num: sectors, label: 'Sectors covered', grad: 'linear-gradient(135deg,#a855f7,#7c3aed)', shadow: 'rgba(124,58,237,.45)' },
-    { icon: 'award', num: groupIN(strong), label: 'Strong picks · ≥5 signals', grad: 'linear-gradient(135deg,#34d399,#10b981)', shadow: 'rgba(16,185,129,.45)' },
-    { icon: 'activity', num: avg, label: `Avg green signals · of ${CHECK_KEYS.length}`, grad: 'linear-gradient(135deg,#fbbf24,#f59e0b)', shadow: 'rgba(245,158,11,.45)' },
+    { id: 'kpi-liquid', icon: 'building-2', num: groupIN(s.liquid), label: 'Liquid companies', grad: 'linear-gradient(135deg,#6366f1,#4f46e5)', shadow: 'rgba(79,70,229,.45)' },
+    { id: 'kpi-sectors', icon: 'layout-grid', num: s.sectors, label: 'Sectors covered', grad: 'linear-gradient(135deg,#a855f7,#7c3aed)', shadow: 'rgba(124,58,237,.45)' },
+    { id: 'kpi-strong', icon: 'award', num: groupIN(s.strong), label: 'Strong picks · ≥5 signals', grad: 'linear-gradient(135deg,#34d399,#10b981)', shadow: 'rgba(16,185,129,.45)' },
+    { id: 'kpi-avg', icon: 'activity', num: s.avg, label: `Avg green signals · of ${CHECK_KEYS.length}`, grad: 'linear-gradient(135deg,#fbbf24,#f59e0b)', shadow: 'rgba(245,158,11,.45)' },
   ];
   $('kpis').innerHTML = cards
     .map(
       (c, i) => `<div class="kpi-card" style="--kpi-grad:${c.grad};--kpi-shadow:${c.shadow};animation-delay:${i * 70}ms">
         <div class="kpi-top"><span class="kpi-icon"><i data-lucide="${c.icon}"></i></span></div>
-        <div class="kpi-num">${c.num}</div>
+        <div class="kpi-num" id="${c.id}">${c.num}</div>
         <div class="kpi-label">${esc(c.label)}</div>
       </div>`
     )
     .join('');
+}
+
+// Re-point the funnel headline + KPI numbers at the ADTV-gated liquid set, in
+// place (no innerHTML re-render) so moving the daily-value input never
+// re-triggers the card entrance animation. The funnel label tracks the floor.
+function updateUniverse(base) {
+  const s = universeStats(base);
+  setText('kpi-liquid', groupIN(s.liquid));
+  setText('kpi-sectors', s.sectors);
+  setText('kpi-strong', groupIN(s.strong));
+  setText('kpi-avg', s.avg);
+  setText('funnel-liquid', groupIN(s.liquid));
+  setText('funnel-liquid-label', `Liquid · ₹${state.filters.adtv} Cr / 30-day ADV`);
 }
 
 // ── controls ────────────────────────────────────────────────────────────────
@@ -234,6 +263,21 @@ function wire() {
   $('mcap-filter').addEventListener('change', (e) => {
     state.filters.mcap = e.target.value;
     apply();
+  });
+  // Daily-value floor: tighten the liquid set live above ₹4 Cr. Sub-floor input
+  // is clamped to the floor for the applied filter mid-type; the box itself is
+  // normalized on blur so typing a multi-digit value ("10") isn't fought.
+  $('adtv-filter').addEventListener(
+    'input',
+    debounce((e) => {
+      const raw = Number(e.target.value);
+      state.filters.adtv = Number.isFinite(raw) && raw > ADTV_FLOOR ? raw : ADTV_FLOOR;
+      apply();
+    }, 140)
+  );
+  $('adtv-filter').addEventListener('blur', (e) => {
+    const raw = Number(e.target.value);
+    if (!Number.isFinite(raw) || raw < ADTV_FLOOR) e.target.value = ADTV_FLOOR;
   });
   $('shortlist').addEventListener('click', (e) => {
     const btn = e.target.closest('.seg');
@@ -314,11 +358,12 @@ function wire() {
 }
 
 function resetFilters() {
-  state.filters = { search: '', sector: '', check: '', mcap: '', minSignals: 0 };
+  state.filters = { search: '', sector: '', check: '', mcap: '', minSignals: 0, adtv: ADTV_FLOOR };
   $('search').value = '';
   $('sector-filter').value = '';
   $('check-filter').value = '';
   $('mcap-filter').value = '';
+  $('adtv-filter').value = ADTV_FLOOR;
   [...$('shortlist').children].forEach((c, i) => c.classList.toggle('active', i === 0));
   apply();
 }
@@ -326,6 +371,7 @@ function resetFilters() {
 // ── filter + sort + render ──────────────────────────────────────────────────
 function matches(rec, f) {
   if (f.search && !(rec.name.toLowerCase().includes(f.search) || rec.slug.toLowerCase().includes(f.search))) return false;
+  if (f.adtv > ADTV_FLOOR && rec.adtv != null && rec.adtv < f.adtv) return false;
   if (f.sector && rec.sector !== f.sector) return false;
   if (f.check && (!rec.params || rec.params[f.check].verdict !== 'PASS')) return false;
   if (f.minSignals && (rec.passCount == null || rec.passCount < f.minSignals)) return false;
@@ -338,15 +384,19 @@ function matches(rec, f) {
 
 function apply() {
   const f = state.filters;
-  let view = state.records.filter((r) => matches(r, f));
+  // Liquid base = everything at/above the chosen daily-value floor. This is what
+  // the funnel headline + KPIs count and what the "of N" denominator measures;
+  // the grid narrows it further by the remaining filters.
+  const base = f.adtv > ADTV_FLOOR ? state.records.filter((r) => r.adtv == null || r.adtv >= f.adtv) : state.records;
+  let view = base.filter((r) => matches(r, f));
   view = grid.sortRecords(view, state.sort.key, state.sort.dir);
   state.view = view; // exposed for "Export to Excel"
 
   $('master-head').innerHTML = grid.headHtml(state.sort);
   $('master-body').innerHTML = grid.bodyHtml(view);
 
-  const total = state.records.length;
-  $('showing-count').innerHTML = `Showing <b>${groupIN(view.length)}</b> of ${groupIN(total)}`;
+  $('showing-count').innerHTML = `Showing <b>${groupIN(view.length)}</b> of ${groupIN(base.length)}`;
+  updateUniverse(base);
   renderChips();
 
   $('empty-state').classList.toggle('hidden', view.length > 0);
@@ -358,6 +408,7 @@ function renderChips() {
   const f = state.filters;
   const chips = [];
   if (f.minSignals) chips.push(['minSignals', `≥${f.minSignals} signals`]);
+  if (f.adtv > ADTV_FLOOR) chips.push(['adtv', `≥ ₹${f.adtv} Cr ADV`]);
   if (f.sector) chips.push(['sector', f.sector]);
   if (f.check) chips.push(['check', state.labels[f.check] || f.check]);
   if (f.mcap) chips.push(['mcap', $('mcap-filter').selectedOptions[0].textContent]);
@@ -378,6 +429,9 @@ function renderChips() {
         if (k === 'minSignals') {
           state.filters.minSignals = 0;
           [...$('shortlist').children].forEach((c, i) => c.classList.toggle('active', i === 0));
+        } else if (k === 'adtv') {
+          state.filters.adtv = ADTV_FLOOR;
+          $('adtv-filter').value = ADTV_FLOOR;
         } else {
           state.filters[k] = '';
           const map = { sector: 'sector-filter', check: 'check-filter', mcap: 'mcap-filter', search: 'search' };

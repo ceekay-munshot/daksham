@@ -98,7 +98,7 @@
               <span class="funnel-icon funnel-icon--accent"><i data-lucide="droplets"></i></span>
               <div>
                 <div class="funnel-num" id="funnel-liquid">—</div>
-                <div class="funnel-label">Liquid · ₹4 Cr / 30-day ADV</div>
+                <div class="funnel-label" id="funnel-liquid-label">Liquid · ₹4 Cr / 30-day ADV</div>
               </div>
             </div>
           </div>
@@ -116,6 +116,11 @@
           <div class="search-box">
             <i data-lucide="search"></i>
             <input id="search" type="search" placeholder="Search company or symbol…" autocomplete="off" />
+          </div>
+          <div class="control-field">
+            <label>Min daily value · ₹ Cr</label>
+            <input id="adtv-filter" class="num-input" type="number" min="4" step="1" value="4"
+              inputmode="decimal" aria-label="Minimum 30-day average daily traded value in ₹ crore; floor is ₹4 Cr" />
           </div>
           <div class="control-field">
             <label>Sector</label>
