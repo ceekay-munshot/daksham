@@ -90,6 +90,10 @@ function getSeries(row, cfg) {
 
 function paramRow(p, row, cfg, store) {
   if (!p) return '';
+  // Hide structurally-irrelevant rows (e.g. material cost / asset turnover / EBITDA
+  // for a lender). Client ask #3: don't show metrics that don't apply to the sector.
+  // "Not applicable — …" is the naSector note; "Insufficient history" (naData) stays.
+  if (p.verdict === 'NA' && typeof p.note === 'string' && p.note.startsWith('Not applicable')) return '';
   const isRaw = p.output_type === 'raw';
 
   let main = `<div class="prow-label">${esc(p.label)}</div>`;
@@ -125,6 +129,8 @@ function paramRow(p, row, cfg, store) {
 }
 
 function sectionHtml(sec, rec, store) {
+  const rows = sec.rows.map((cfg) => paramRow(rec.params[cfg.key], rec.row, cfg, store)).join('');
+  if (!rows.trim()) return ''; // every row hidden (e.g. a manufacturing section for a bank)
   const sub = sectionSub(sec, rec.row, asOfLabel(rec));
   return `<div class="dsection">
     <div class="dsection-head">
@@ -132,7 +138,50 @@ function sectionHtml(sec, rec, store) {
       <span class="dsection-title">${sec.title}</span>
       ${sub ? `<span class="dsection-sub" title="Period each metric is as of — from its Screener table; live ratios as of the snapshot pull">${esc(sub)}</span>` : ''}
     </div>
-    ${sec.rows.map((cfg) => paramRow(rec.params[cfg.key], rec.row, cfg, store)).join('')}
+    ${rows}
+  </div>`;
+}
+
+// Lender-only section: the operational metrics that actually matter for a bank /
+// NBFC (asset quality + margin), which the generic sections don't carry. Only
+// rendered when bank-metrics.json has a real read for this company (rec.bank).
+function bankingSectionHtml(rec, store) {
+  const b = rec.bank;
+  if (!b) return '';
+  const rr = rec.row || {};
+  const path = rr.path;
+  const spark = (series, title, unit) => {
+    if (!Array.isArray(series) || series.length < 2) return '';
+    const id = `c${store.n++}`;
+    store.map[id] = {
+      title,
+      subtitle: `${series.length} periods · oldest → latest`,
+      values: series,
+      unit: unit || '',
+      source: { label: 'Screener.in', url: `https://www.screener.in${path || ''}#quarters` },
+    };
+    return `<button class="trend-btn" data-chart="${id}" aria-label="Open ${esc(title)} trend chart" title="Open trend chart">${sparkline(series, { w: 72, h: 26 })}<span class="trend-ic"><i data-lucide="expand"></i></span></button>`;
+  };
+  const row = (icon, label, value, unit, series, chartTitle, src) => {
+    const val = value == null || value === '' ? '—' : `${value}${unit || ''}`;
+    return `<div class="prow">
+      <span class="prow-ic"><i data-lucide="${icon}"></i></span>
+      <div class="prow-main"><div class="prow-label">${esc(label)}</div></div>
+      <div class="prow-right">${spark(series, chartTitle || label, unit)}<span class="prow-val">${esc(val)}</span>${screenerIcon(path, src)}</div>
+    </div>`;
+  };
+  const num = (x) => (x == null || x === '' || Number.isNaN(Number(x)) ? null : Number(x));
+  return `<div class="dsection">
+    <div class="dsection-head">
+      <span class="sec-ic" style="--sec-grad:linear-gradient(135deg,#0d9488,#0f766e)"><i data-lucide="landmark"></i></span>
+      <span class="dsection-title">Banking metrics</span>
+      <span class="dsection-sub" title="Lender-specific operational metrics from Screener">lender · asset quality &amp; margin</span>
+    </div>
+    ${row('shield-alert', 'Gross NPA %', num(b.gross_npa_pct), '%', b.gross_npa_series, 'Gross NPA %', 'quarters')}
+    ${row('shield', 'Net NPA %', num(b.net_npa_pct), '%', null, null, 'quarters')}
+    ${row('percent', 'Financing Margin % (NIM proxy)', num(b.financing_margin_pct), '%', b.financing_margin_series, 'Financing Margin %', 'quarters')}
+    ${row('trending-up', 'Return on Equity', num(rr.roe), '%', null, null, 'ratios')}
+    ${row('book-open', 'Book Value', num(rr.book_value) == null ? null : `₹${num(rr.book_value)}`, '', null, null, 'balance-sheet')}
   </div>`;
 }
 
@@ -568,7 +617,9 @@ export function openDossier(rec) {
   }
 
   const store = { n: 0, map: {} };
-  const body = SECTIONS.map((s) => sectionHtml(s, rec, store)).join('') + qualHtml(rec) + moatHtml(rec) + newsHtml(rec);
+  const secs = SECTIONS.map((s) => sectionHtml(s, rec, store));
+  // For lenders, slot the bank-specific section right after Valuation.
+  const body = secs[0] + bankingSectionHtml(rec, store) + secs.slice(1).join('') + qualHtml(rec) + moatHtml(rec) + newsHtml(rec);
   charts = store.map;
 
   elDossier.innerHTML = `
