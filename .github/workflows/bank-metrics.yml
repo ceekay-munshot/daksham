@@ -1,0 +1,81 @@
+name: Bank / NBFC metrics
+
+# Manual-only. For every financial in daksham-companies.json, fetches its PUBLIC
+# Screener page (/company/<slug>/) and extracts the operational metrics that
+# actually matter for a lender — Gross/Net NPA % and Financing Margin % — into
+# public/data/bank-metrics.json. No login / browser: plain fetch + parse.
+on:
+  workflow_dispatch:
+    inputs:
+      max_companies:
+        description: "Financials to scrape this run (blank = all). Set 5 for a smoke."
+        required: false
+        default: "5"
+      start_at:
+        description: "Resume offset (index into the financial subset)."
+        required: false
+        default: "0"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: bank-metrics
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Scrape bank / NBFC metrics
+        env:
+          MAX_COMPANIES: ${{ inputs.max_companies }}
+          START_AT: ${{ inputs.start_at }}
+        run: node scrapers/bank-metrics.mjs
+
+      - name: Upload artifact
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v5
+        with:
+          name: bank-metrics
+          if-no-files-found: ignore
+          path: |
+            public/data/bank-metrics.json
+            public/data/bank-metrics-debug.json
+
+      - name: Commit metrics to public/data/
+        if: ${{ always() }}
+        run: |
+          set -e
+          BR="${{ github.ref_name }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/data/bank-metrics.json public/data/bank-metrics-debug.json 2>/dev/null || true
+          if git diff --cached --quiet; then
+            echo "No bank-metrics changes to commit."
+            exit 0
+          fi
+          git commit -m "data: refresh bank / NBFC metrics [skip ci]"
+          for i in 1 2 3 4 5; do
+            if git push origin "HEAD:$BR"; then echo "pushed"; exit 0; fi
+            git fetch origin "$BR"
+            git rebase "origin/$BR"
+            sleep $((2 ** i))
+          done
+          echo "push failed after 5 attempts"; exit 1
