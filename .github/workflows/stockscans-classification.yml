@@ -1,0 +1,104 @@
+name: Stockscans classification
+
+# Manual-only. Logs in to Stockscans, matches our liquid companies by NSE symbol,
+# and extracts each one's industry / sector into
+# public/data/stockscans-classification.json (later consumed by the dashboard's
+# sector filter + peer engine).
+#
+# v1 is a recon run: keep max_companies small (default 5) and debug_dump_html on,
+# then download the "stockscans-debug-html" artifact to confirm login worked and
+# to tighten the extraction selectors before scaling up.
+on:
+  workflow_dispatch:
+    inputs:
+      max_companies:
+        description: "Companies to classify this run (blank = all liquid). Keep small for the recon smoke."
+        required: false
+        default: "5"
+      start_at:
+        description: "Resume offset (index into liquid-universe.json)."
+        required: false
+        default: "0"
+      debug_dump_html:
+        description: "Dump login + first-company HTML/screenshots as an artifact (leave on for recon)."
+        type: boolean
+        required: false
+        default: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: stockscans-classification
+  cancel-in-progress: false
+
+jobs:
+  classify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: Scrape Stockscans classification
+        env:
+          STOCKSCANS_EMAIL: ${{ secrets.STOCKSCANS_EMAIL }}
+          STOCKSCANS_PASSWORD: ${{ secrets.STOCKSCANS_PASSWORD }}
+          MAX_COMPANIES: ${{ inputs.max_companies }}
+          START_AT: ${{ inputs.start_at }}
+          DEBUG_DUMP_HTML: ${{ inputs.debug_dump_html }}
+        run: node scrapers/stockscans-classify.mjs
+
+      - name: Upload classification artifact
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v5
+        with:
+          name: stockscans-classification
+          if-no-files-found: ignore
+          path: |
+            public/data/stockscans-classification.json
+            public/data/stockscans-classification-debug.json
+
+      - name: Upload debug HTML
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v5
+        with:
+          name: stockscans-debug-html
+          if-no-files-found: ignore
+          path: public/data/debug/stockscans/
+
+      - name: Commit classification to public/data/
+        if: ${{ always() }}
+        run: |
+          set -e
+          BR="${{ github.ref_name }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/data/stockscans-classification.json public/data/stockscans-classification-debug.json 2>/dev/null || true
+          if git diff --cached --quiet; then
+            echo "No classification changes to commit."
+            exit 0
+          fi
+          git commit -m "data: refresh Stockscans classification [skip ci]"
+          for i in 1 2 3 4 5; do
+            if git push origin "HEAD:$BR"; then echo "pushed"; exit 0; fi
+            git fetch origin "$BR"
+            git rebase "origin/$BR"
+            sleep $((2 ** i))
+          done
+          echo "push failed after 5 attempts"; exit 1
