@@ -2,245 +2,99 @@
 // Stockscans.in industry-classification scraper.
 //
 // The client wants the dashboard's sector / peer grouping to follow Stockscans'
-// industry classification (https://www.stockscans.in) instead of Screener's. The
-// classification lives behind a login, so this logs in, discovers each company's
-// Stockscans page from the sitemap, and extracts its industry + sector into
-//   public/data/stockscans-classification.json   { slug -> { symbol, industry, sector } }
+// industry classification. That tag turns out to be PUBLIC — server-rendered on
+// every company page — so no login and no browser are needed.
 //
-// Join key: our liquid-universe slugs are NSE symbols, and Stockscans URLs are
-// `NSE:<SYMBOL>` — so the mapping is a direct symbol match.
+// Our liquid-universe slugs are NSE symbols, and the page URL is
+// `/company/NSE:<SYMBOL>`. For each liquid company we fetch the page and read the
+// "Industry:" link into
+//   public/data/stockscans-classification.json  { <SYMBOL>: { slug, symbol, industry, url } }
 //
-// NOTE (v1 — recon): the logged-in page DOM could not be inspected up front, so
-// this run is deliberately conservative. With DEBUG_DUMP_HTML=1 (default on the
-// smoke run) it saves the rendered HTML + a screenshot of the login page and the
-// first companies to public/data/debug/stockscans/, so the extraction selectors
-// can be tightened from a real dump. Best-effort extraction runs regardless.
-//
-//   STOCKSCANS_EMAIL=... STOCKSCANS_PASSWORD=... MAX_COMPANIES=5 node scrapers/stockscans-classify.mjs
+//   MAX_COMPANIES=5 node scrapers/stockscans-classify.mjs   # smoke
+//   node scrapers/stockscans-classify.mjs                   # full liquid set
 
 import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { chromium } from 'playwright';
 import * as cheerio from 'cheerio';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const OUT_DIR = path.resolve(__dirname, '..', 'public', 'data');
-const DEBUG_DIR = path.resolve(OUT_DIR, 'debug', 'stockscans');
 const OUT_FILE = path.join(OUT_DIR, 'stockscans-classification.json');
 const DEBUG_FILE = path.join(OUT_DIR, 'stockscans-classification-debug.json');
 
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const truthy = (v) => ['1', 'true', 'yes', 'on'].includes(String(v || '').toLowerCase());
 const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
   '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 
 // ─────────────────────────── pure helpers (unit-tested) ─────────────────────
-// Extract every <loc> URL from a sitemap / sitemap-index XML.
-export function parseSitemap(xml) {
-  const $ = cheerio.load(xml || '', { xmlMode: true });
-  const urls = [];
-  $('loc').each((_, el) => {
-    const u = $(el).text().trim();
-    if (u) urls.push(u);
-  });
-  return urls;
-}
-
-// `.../company/NSE:RELIANCE` / `.../NSE:RELIANCE/...` -> { exchange, symbol }.
-export function symbolFromUrl(url) {
-  const m = String(url || '').match(/\b(NSE|BSE):([A-Za-z0-9&._-]+)/i);
-  return m ? { exchange: m[1].toUpperCase(), symbol: m[2].toUpperCase() } : null;
-}
-
 export const normSymbol = (s) => String(s || '').trim().toUpperCase();
+export const companyUrl = (base, symbol) => `${String(base).replace(/\/+$/, '')}/company/NSE:${normSymbol(symbol)}`;
 
-// Best-effort industry / sector read from a rendered company page. Looks for a
-// label cell ("Industry" / "Sector") and takes the nearest value. Deliberately
-// forgiving — refined once a real logged-in dump is in hand.
-export function extractClassification(html) {
+// The industry is a link to a pre-filtered scan:
+//   <span class="…metaLinkLabel…">Industry:</span>
+//   <a class="…metaLinkValue…" href="/scans/new?industry=…">Abrasives &amp; Grinding Wheels</a>
+// The anchor text is the clean name (the href param mangles "&" → "_"), so read
+// the text. Falls back to the label-adjacent value if the class ever changes.
+export function extractIndustry(html) {
   const $ = cheerio.load(html || '');
-  const pick = (labels) => {
-    let val = null;
-    $('*').each((_, el) => {
-      if (val) return;
-      const $el = $(el);
-      const own = $el.clone().children().remove().end().text().trim().toLowerCase().replace(/:$/, '');
-      if (!labels.includes(own)) return;
-      const cand =
-        $el.next().text().trim() ||
-        $el.parent().find('a,span,div').not($el).first().text().trim() ||
-        $el.parent().next().text().trim();
-      if (cand && cand.length <= 60 && cand.toLowerCase() !== own) val = cand;
+  let a = $('a[href*="/scans/new?industry="]').first();
+  if (!a.length) {
+    // fallback: a metaLinkValue anchor sitting right after an "Industry:" label
+    $('span').each((_, el) => {
+      if (a.length) return;
+      if (/^industry:?$/i.test($(el).text().trim())) {
+        const next = $(el).next('a');
+        if (next.length) a = next;
+      }
     });
-    return val || null;
-  };
-  return { industry: pick(['industry', 'sub-industry', 'sub industry']), sector: pick(['sector']) };
+  }
+  const txt = a.text().replace(/\s+/g, ' ').trim();
+  return txt || null;
 }
 
-// ─────────────────────────── config ────────────────────────────────────────
-function readConfig() {
-  const { STOCKSCANS_EMAIL, STOCKSCANS_PASSWORD } = process.env;
-  if (!STOCKSCANS_EMAIL || !STOCKSCANS_PASSWORD) {
-    throw new Error('Missing credentials: set STOCKSCANS_EMAIL and STOCKSCANS_PASSWORD.');
+// ─────────────────────────── fetch ─────────────────────────────────────────
+async function fetchHtml(url, tries = 3) {
+  for (let i = 1; i <= tries; i += 1) {
+    try {
+      const res = await fetch(url, { headers: { 'User-Agent': UA, 'Accept-Language': 'en-IN,en;q=0.9' } });
+      if (res.status === 404) return { status: 404, html: null };
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return { status: 200, html: await res.text() };
+    } catch (err) {
+      if (i === tries) return { status: 0, html: null, error: err.message };
+      await sleep(800 * i);
+    }
   }
+  return { status: 0, html: null };
+}
+
+function readConfig() {
   const base = (process.env.STOCKSCANS_BASE || 'https://www.stockscans.in').replace(/\/+$/, '');
   const max = parseInt(process.env.MAX_COMPANIES || '', 10);
   return {
-    email: STOCKSCANS_EMAIL,
-    password: STOCKSCANS_PASSWORD,
     base,
-    loginUrl: process.env.STOCKSCANS_LOGIN_URL || `${base}/login`,
     maxCompanies: Number.isFinite(max) && max > 0 ? max : null, // null = all
     startAt: Math.max(0, parseInt(process.env.START_AT || '0', 10) || 0),
-    debug: process.env.DEBUG_DUMP_HTML == null ? true : truthy(process.env.DEBUG_DUMP_HTML),
+    politenessMs: Math.max(0, parseInt(process.env.POLITENESS_MS || '250', 10) || 250),
   };
 }
 
-const firstPresent = async (page, selectors) => {
-  for (const s of selectors) if (await page.locator(s).count()) return s;
-  return null;
-};
-
-function dump(name, content) {
-  fs.mkdirSync(DEBUG_DIR, { recursive: true });
-  fs.writeFileSync(path.join(DEBUG_DIR, name), content);
-}
-
-const passCount = (page) => page.locator('input[type="password"]').count();
-
-// The "Thanks for being with us" announcement popup covers the nav on load. It
-// auto-dismisses (progress bar) but we hurry it along: Escape, then a corner
-// click on its backdrop. Classes are Next.js-hashed, so match by class-prefix.
-async function dismissAnnouncement(page) {
-  const backdrop = page.locator('[class*="announcementPopup_backdrop"], [class*="Popup_backdrop"], [class*="modalBackdrop"]');
-  for (let i = 0; i < 4; i += 1) {
-    if (!(await backdrop.count().catch(() => 0))) return;
-    await page.keyboard.press('Escape').catch(() => {});
-    await sleep(500);
-    await backdrop.first().click({ position: { x: 4, y: 4 }, force: true }).catch(() => {});
-    await sleep(700);
-  }
-}
-
-// Login is a nav element reading "Login" (hashed classes → match by class-prefix
-// / visible text). Click it and wait for the password field to render.
-async function openLoginForm(page) {
-  const tries = ['[class*="loginButton"]', 'button:has-text("Login")', 'a:has-text("Login")'];
-  for (const sel of tries) {
-    const loc = page.locator(sel);
-    const n = await loc.count().catch(() => 0);
-    for (let i = 0; i < n; i += 1) {
-      const el = loc.nth(i);
-      if (!(await el.isVisible().catch(() => false))) continue;
-      await el.click({ force: true }).catch(() => {});
-      await sleep(1800);
-      if (await passCount(page)) return true;
-    }
-  }
-  const byText = page.getByText('Login', { exact: true });
-  const n = await byText.count().catch(() => 0);
-  for (let i = 0; i < n; i += 1) {
-    const el = byText.nth(i);
-    if (!(await el.isVisible().catch(() => false))) continue;
-    await el.click({ force: true }).catch(() => {});
-    await sleep(1800);
-    if (await passCount(page)) return true;
-  }
-  return (await passCount(page)) > 0;
-}
-
-async function login(page, cfg) {
-  // /login just renders the homepage behind the marketing popup, so start there
-  // and open the login modal from the nav.
-  for (let attempt = 1; ; attempt += 1) {
-    try {
-      await page.goto(cfg.base, { waitUntil: 'domcontentloaded', timeout: 60000 });
-      break;
-    } catch (err) {
-      if (attempt >= 3) throw new Error(`Could not reach Stockscans after 3 attempts: ${err.message}`);
-      await sleep(2000 * attempt);
-    }
-  }
-  await page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => {});
-  await sleep(2500); // SPA + announcement popup paint
-  await dismissAnnouncement(page);
-
-  const opened = await openLoginForm(page);
-  if (cfg.debug) {
-    dump('login-modal.html', await page.content());
-    await page.screenshot({ path: path.join(DEBUG_DIR, 'login-modal.png'), fullPage: true }).catch(() => {});
-  }
-  if (!opened) {
-    throw new Error('Could not open the login form (no password field after clicking Login). If sign-in is Google-only, see debug/stockscans/login-modal.html');
-  }
-
-  const emailSel = await firstPresent(page, [
-    'input[type="email"]', 'input[name="email"]', 'input[autocomplete="username"]', 'input[name="username"]',
-    'input[type="text"]:not([placeholder*="Search" i]):not([placeholder*="stock" i])',
-  ]);
-  if (!emailSel) {
-    throw new Error('Login modal opened but no email/username field found. See debug/stockscans/login-modal.html');
-  }
-  await page.fill(emailSel, cfg.email);
-  await page.fill('input[type="password"]', cfg.password);
-  await page.press('input[type="password"]', 'Enter'); // SPA login forms submit on Enter
-
-  await page.waitForLoadState('networkidle', { timeout: 30000 }).catch(() => {});
-  await sleep(3000);
-
-  if (cfg.debug) {
-    dump('post-login.html', await page.content());
-    await page.screenshot({ path: path.join(DEBUG_DIR, 'post-login.png'), fullPage: true }).catch(() => {});
-  }
-  if (await passCount(page)) {
-    throw new Error('Login did not complete (password field still present after submit). Check STOCKSCANS_EMAIL / STOCKSCANS_PASSWORD, or see debug/stockscans/post-login.html');
-  }
-}
-
-// Pull every company URL Stockscans publishes → Map(SYMBOL -> url).
-async function fetchCompanyIndex(cfg) {
-  const idx = new Map();
-  const sitemaps = [`${cfg.base}/sitemaps/companies.xml`];
-  for (const sm of sitemaps) {
-    let xml = '';
-    try {
-      const res = await fetch(sm, { headers: { 'User-Agent': UA } });
-      if (!res.ok) { console.warn(`  sitemap: ${sm} -> HTTP ${res.status}`); continue; }
-      xml = await res.text();
-    } catch (err) { console.warn(`  sitemap: ${sm} failed (${err.message})`); continue; }
-    // A sitemap index points to child sitemaps; follow one level.
-    const locs = parseSitemap(xml);
-    const children = locs.filter((u) => /\.xml($|\?)/.test(u));
-    const targets = children.length ? children : [null];
-    for (const child of targets) {
-      let urls = locs;
-      if (child) {
-        try {
-          const r = await fetch(child, { headers: { 'User-Agent': UA } });
-          urls = parseSitemap(await r.text());
-        } catch { urls = []; }
-      }
-      for (const u of urls) {
-        const s = symbolFromUrl(u);
-        if (s && !idx.has(s.symbol)) idx.set(s.symbol, { url: u, exchange: s.exchange });
-      }
-    }
-  }
-  return idx;
-}
-
-function writeOut(companies, meta) {
+function writeOut(base, companies) {
   fs.writeFileSync(
     OUT_FILE,
-    JSON.stringify({ generated_at: new Date().toISOString(), source: meta.base, count: Object.keys(companies).length, companies }, null, 0)
+    JSON.stringify(
+      { generated_at: new Date().toISOString(), source: base, count: Object.keys(companies).length, companies },
+      null,
+      0
+    )
   );
 }
 
 async function main() {
   const cfg = readConfig();
-  console.log('Stockscans classification scraper');
+  console.log('Stockscans classification scraper (public pages, no login)');
   console.log(`  base   : ${cfg.base}`);
   console.log(`  scope  : ${cfg.maxCompanies ? `${cfg.maxCompanies} companies (smoke)` : 'all liquid companies'} from index ${cfg.startAt}`);
 
@@ -248,73 +102,41 @@ async function main() {
   const existing = fs.existsSync(OUT_FILE) ? JSON.parse(fs.readFileSync(OUT_FILE, 'utf8')).companies || {} : {};
   const out = { ...existing };
 
-  const browser = await chromium.launch({ headless: true });
-  const context = await browser.newContext({ userAgent: UA });
-  const page = await context.newPage();
-  page.setDefaultNavigationTimeout(60000);
+  let slice = liquid.slice(cfg.startAt);
+  if (cfg.maxCompanies) slice = slice.slice(0, cfg.maxCompanies);
 
-  const stats = { generated_at: new Date().toISOString(), universe_in: liquid.length, matched: 0, unmatched: 0, extracted: 0, unmatched_slugs: [], no_class_slugs: [] };
-  try {
-    await login(page, cfg);
-    console.log('  login  : ok');
+  const stats = { generated_at: new Date().toISOString(), universe_in: liquid.length, attempted: slice.length, found: 0, not_found: 0, errors: 0, missing_industry: [] };
+  let i = 0;
+  for (const row of slice) {
+    i += 1;
+    const symbol = normSymbol(row.slug);
+    // resume: skip names already classified with a real industry
+    if (out[symbol] && out[symbol].industry) continue;
 
-    const idx = await fetchCompanyIndex(cfg);
-    console.log(`  sitemap: Stockscans lists ${idx.size} companies`);
-
-    let slice = liquid.slice(cfg.startAt);
-    if (cfg.maxCompanies) slice = slice.slice(0, cfg.maxCompanies);
-
-    let i = 0;
-    for (const row of slice) {
-      i += 1;
-      const symbol = normSymbol(row.slug);
-      const hit = idx.get(symbol);
-      if (!hit) { stats.unmatched += 1; stats.unmatched_slugs.push(symbol); continue; }
-      stats.matched += 1;
-
-      let html = null;
-      for (let attempt = 1; attempt <= 3 && html == null; attempt++) {
-        try {
-          await page.goto(hit.url, { waitUntil: 'domcontentloaded' });
-          await page.waitForSelector('body', { timeout: 15000 });
-          await sleep(1200); // SPA render
-          html = await page.content();
-        } catch { await sleep(1000 * attempt); }
-      }
-      if (html == null) { stats.no_class_slugs.push(symbol); continue; }
-
-      if (cfg.debug && i <= 3) {
-        dump(`company-${symbol}.html`, html);
-        await page.screenshot({ path: path.join(DEBUG_DIR, `company-${symbol}.png`) }).catch(() => {});
-      }
-
-      const cls = extractClassification(html);
-      if (cls.industry || cls.sector) stats.extracted += 1;
-      else stats.no_class_slugs.push(symbol);
-
-      out[symbol] = { slug: row.slug, symbol, exchange: hit.exchange, industry: cls.industry, sector: cls.sector, url: hit.url };
-      writeOut(out, cfg); // flush each — resumable
-      console.log(`  ${i}/${slice.length} ${symbol} -> industry=${cls.industry ?? '—'} sector=${cls.sector ?? '—'}`);
-      await sleep(400);
+    const url = companyUrl(cfg.base, symbol);
+    const res = await fetchHtml(url);
+    if (res.status === 404) {
+      stats.not_found += 1;
+      out[symbol] = { slug: row.slug, symbol, industry: null, status: 'not_found', url };
+    } else if (res.status !== 200) {
+      stats.errors += 1;
+      out[symbol] = { slug: row.slug, symbol, industry: null, status: `http_${res.status}`, url };
+      console.warn(`  ${i}/${slice.length} ${symbol} — fetch failed (${res.error || res.status})`);
+    } else {
+      const industry = extractIndustry(res.html);
+      if (industry) stats.found += 1;
+      else stats.missing_industry.push(symbol);
+      out[symbol] = { slug: row.slug, symbol, industry, url };
+      console.log(`  ${i}/${slice.length} ${symbol} -> ${industry ?? '(no industry tag)'}`);
     }
-
-    // one index page for reference on the recon run
-    if (cfg.debug) {
-      try {
-        await page.goto(`${cfg.base}/index/NSE:CNXIT`, { waitUntil: 'domcontentloaded' });
-        await sleep(1500);
-        dump('index-CNXIT.html', await page.content());
-      } catch { /* best effort */ }
-    }
-
-    writeOut(out, cfg);
-    fs.writeFileSync(DEBUG_FILE, JSON.stringify(stats, null, 2));
-    console.log(`\nDone — matched ${stats.matched}, extracted ${stats.extracted}, unmatched ${stats.unmatched}.`);
-    console.log(`  ${OUT_FILE}`);
-    if (cfg.debug) console.log(`  debug dumps: public/data/debug/stockscans/`);
-  } finally {
-    await browser.close();
+    writeOut(cfg.base, out); // flush each — resumable
+    if (cfg.politenessMs) await sleep(cfg.politenessMs);
   }
+
+  writeOut(cfg.base, out);
+  fs.writeFileSync(DEBUG_FILE, JSON.stringify(stats, null, 2));
+  console.log(`\nDone — ${stats.found} industries, ${stats.not_found} not on Stockscans, ${stats.errors} errors (of ${slice.length}).`);
+  console.log(`  ${OUT_FILE}`);
 }
 
 // Only run when invoked directly (not when imported by the unit test).
