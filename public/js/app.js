@@ -37,8 +37,29 @@ const state = {
   bySlug: new Map(),
   labels: {},
   sort: { key: 'passCount', dir: 'desc' },
-  filters: { search: '', sector: '', check: '', mcap: '', minSignals: 0, adtv: ADTV_FLOOR },
+  filters: { search: '', sector: '', check: '', mcap: '', minSignals: 0, adtv: ADTV_FLOOR, industry: '' },
 };
+
+// Relabel each record's `industry` with its Stockscans industry (the finer,
+// client-preferred taxonomy) for the grid / dossier / industry filter, keeping
+// Screener's as `screenerIndustry`. The peer-median check deliberately stays on
+// Screener's broader grouping (see load()), so relabelling never moves a verdict.
+function relabelIndustry(records, classification) {
+  const bySym = new Map();
+  if (classification && classification.companies) {
+    for (const [sym, v] of Object.entries(classification.companies)) {
+      if (v && v.industry) bySym.set(String(sym).toUpperCase(), v.industry);
+    }
+  }
+  if (!bySym.size) return;
+  for (const r of records) {
+    const ind = bySym.get(String(r.slug || '').toUpperCase());
+    if (ind && ind !== r.industry) {
+      r.screenerIndustry = r.industry;
+      r.industry = ind;
+    }
+  }
+}
 
 // ── data load ───────────────────────────────────────────────────────────────
 async function load() {
@@ -52,8 +73,9 @@ async function load() {
   let docsManifest = null;
   let news = null;
   let qverify = null;
+  let classification = null;
   try {
-    [companies, liquid, companiesMeta, universeMeta, qual, moat, docsManifest, news, qverify] = await Promise.all([
+    [companies, liquid, companiesMeta, universeMeta, qual, moat, docsManifest, news, qverify, classification] = await Promise.all([
       fetch('data/daksham-companies.json').then((r) => {
         if (!r.ok) throw new Error('companies');
         return r.json();
@@ -66,6 +88,7 @@ async function load() {
       fetch('data/docs-manifest.json').then((r) => (r.ok ? r.json() : null)).catch(() => null),
       fetch('data/daksham-news.json').then((r) => (r.ok ? r.json() : null)).catch(() => null),
       fetch('data/daksham-qualitative-verify.json').then((r) => (r.ok ? r.json() : null)).catch(() => null),
+      fetch('data/stockscans-classification.json').then((r) => (r.ok ? r.json() : null)).catch(() => null),
     ]);
   } catch (err) {
     return errorState();
@@ -115,6 +138,9 @@ async function load() {
     rec.asOf = companiesMeta && companiesMeta.generated_at; // Screener snapshot date (quantitative tier)
     return rec;
   });
+  // Relabel the displayed / filterable industry to Stockscans (verdicts already
+  // computed above on Screener grouping, so this is display-only).
+  relabelIndustry(state.records, classification);
   state.bySlug = new Map(state.records.map((r) => [r.slug, r]));
   const sample = state.records.find((r) => !r.pending);
   if (sample) for (const k of CHECK_KEYS) state.labels[k] = sample.params[k].label;
@@ -243,6 +269,10 @@ function buildControls() {
   const sectors = [...new Set(state.records.map((r) => r.sector).filter(Boolean))].sort();
   $('sector-filter').innerHTML =
     '<option value="">All sectors</option>' + sectors.map((s) => `<option value="${esc(s)}">${esc(s)}</option>`).join('');
+  const industries = [...new Set(state.records.map((r) => r.industry).filter(Boolean))].sort();
+  $('industry-filter').innerHTML =
+    `<option value="">All industries (${industries.length})</option>` +
+    industries.map((s) => `<option value="${esc(s)}">${esc(s)}</option>`).join('');
   $('check-filter').innerHTML =
     '<option value="">Any signal</option>' +
     CHECK_KEYS.map((k) => `<option value="${k}">${esc(state.labels[k] || k)}</option>`).join('');
@@ -258,6 +288,10 @@ function wire() {
   );
   $('sector-filter').addEventListener('change', (e) => {
     state.filters.sector = e.target.value;
+    apply();
+  });
+  $('industry-filter').addEventListener('change', (e) => {
+    state.filters.industry = e.target.value;
     apply();
   });
   $('check-filter').addEventListener('change', (e) => {
@@ -362,9 +396,10 @@ function wire() {
 }
 
 function resetFilters() {
-  state.filters = { search: '', sector: '', check: '', mcap: '', minSignals: 0, adtv: ADTV_FLOOR };
+  state.filters = { search: '', sector: '', check: '', mcap: '', minSignals: 0, adtv: ADTV_FLOOR, industry: '' };
   $('search').value = '';
   $('sector-filter').value = '';
+  $('industry-filter').value = '';
   $('check-filter').value = '';
   $('mcap-filter').value = '';
   $('adtv-filter').value = ADTV_FLOOR;
@@ -377,6 +412,7 @@ function matches(rec, f) {
   if (f.search && !(rec.name.toLowerCase().includes(f.search) || rec.slug.toLowerCase().includes(f.search))) return false;
   if (f.adtv > ADTV_FLOOR && rec.adtv != null && rec.adtv < f.adtv) return false;
   if (f.sector && rec.sector !== f.sector) return false;
+  if (f.industry && rec.industry !== f.industry) return false;
   if (f.check && (!rec.params || rec.params[f.check].verdict !== 'PASS')) return false;
   if (f.minSignals && (rec.passCount == null || rec.passCount < f.minSignals)) return false;
   if (f.mcap) {
@@ -414,6 +450,7 @@ function renderChips() {
   if (f.minSignals) chips.push(['minSignals', `≥${f.minSignals} signals`]);
   if (f.adtv > ADTV_FLOOR) chips.push(['adtv', `≥ ₹${f.adtv} Cr ADV`]);
   if (f.sector) chips.push(['sector', f.sector]);
+  if (f.industry) chips.push(['industry', f.industry]);
   if (f.check) chips.push(['check', state.labels[f.check] || f.check]);
   if (f.mcap) chips.push(['mcap', $('mcap-filter').selectedOptions[0].textContent]);
   if (f.search) chips.push(['search', `"${f.search}"`]);
@@ -438,7 +475,7 @@ function renderChips() {
           $('adtv-filter').value = ADTV_FLOOR;
         } else {
           state.filters[k] = '';
-          const map = { sector: 'sector-filter', check: 'check-filter', mcap: 'mcap-filter', search: 'search' };
+          const map = { sector: 'sector-filter', industry: 'industry-filter', check: 'check-filter', mcap: 'mcap-filter', search: 'search' };
           if (map[k]) $(map[k]).value = '';
         }
         apply();
