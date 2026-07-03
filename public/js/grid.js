@@ -2,7 +2,7 @@
 // and a compact "green signals" visual.
 
 import { CHECK_KEYS } from './evaluate.mjs';
-import { esc, inrCr, mult } from './format.js';
+import { esc, inrCr, mult, pct } from './format.js';
 import { sectorChip } from './sectors.js';
 
 export const COLS = [
@@ -12,6 +12,8 @@ export const COLS = [
   { key: 'pb', label: 'P/B', type: 'num', cls: 'num' },
   { key: 'evEbitda', label: 'EV/EBITDA', type: 'num', cls: 'num' },
   { key: 'mcapSales', label: 'M-Cap/Sales', type: 'num', cls: 'num hide-sm' },
+  { key: 'roce', label: 'ROCE', type: 'num', cls: 'num hide-sm' },
+  { key: 'roe', label: 'ROE', type: 'num', cls: 'num hide-sm' },
   { key: 'passCount', label: 'Signals', type: 'num', cls: 'num' },
 ];
 
@@ -68,6 +70,8 @@ function rowHtml(rec, i) {
     <td class="cell-num">${n(rec.pb, mult)}</td>
     <td class="cell-num">${n(rec.evEbitda, mult)}</td>
     <td class="cell-num hide-sm">${n(rec.mcapSales, mult)}</td>
+    <td class="cell-num hide-sm">${n(rec.roce, pct)}</td>
+    <td class="cell-num hide-sm">${n(rec.roe, pct)}</td>
     <td class="num">${signalsCell(rec)}</td>
   </tr>`;
 }

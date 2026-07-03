@@ -151,6 +151,8 @@ function enrich(row) {
     pb: N(row.pb),
     evEbitda: N(row.ev_ebitda),
     mcapSales: psRatio(row.mcap_to_sales),
+    roce: N(row.roce),
+    roe: N(row.roe),
     adtv: N(row.adtv_30d_cr),
     passCount,
     applicable,
@@ -175,6 +177,8 @@ function enrichPending(row) {
     pb: N(row.pb),
     evEbitda: N(row.ev_ebitda),
     mcapSales: psRatio(row.mcap_to_sales),
+    roce: N(row.roce),
+    roe: N(row.roe),
     adtv: N(row.adtv_30d_cr),
     passCount: null,
     applicable: 0,
@@ -444,10 +448,11 @@ function renderChips() {
 
 // ── states ──────────────────────────────────────────────────────────────────
 function skeleton() {
+  const cols = grid.COLS.length;
   $('master-head').innerHTML =
-    '<tr>' + Array.from({ length: 7 }, () => '<th><span class="sk" style="display:inline-block;width:70px;height:11px"></span></th>').join('') + '</tr>';
+    '<tr>' + Array.from({ length: cols }, () => '<th><span class="sk" style="display:inline-block;width:70px;height:11px"></span></th>').join('') + '</tr>';
   $('master-body').innerHTML = Array.from({ length: 10 }, () =>
-    `<tr>${Array.from({ length: 7 }, (_, c) =>
+    `<tr>${Array.from({ length: cols }, (_, c) =>
       `<td><span class="sk" style="display:inline-block;height:14px;width:${c === 0 ? 170 : 60}px"></span></td>`
     ).join('')}</tr>`
   ).join('');
