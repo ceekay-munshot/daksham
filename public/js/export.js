@@ -38,6 +38,32 @@ const QUAL_COLS = [
   ['capital_raised', 'Q: Capital raised'],
 ];
 
+// Moat / Porter factors (industry lens) — key → short header. Scored 0–5 on
+// TREND, higher = more favorable. The grid export carries the company's OWN
+// (own-concall) read per factor; the per-company sheet shows all three lenses.
+const MOAT_COLS = [
+  ['competition', 'Moat: Competition'],
+  ['barriers_to_entry', 'Moat: Barriers'],
+  ['buyer_power', 'Moat: Buyer power'],
+  ['supplier_power', 'Moat: Supplier power'],
+  ['substitution_risk', 'Moat: Substitution'],
+  ['china_imports', 'Moat: China imports'],
+  ['govt_regulation', 'Moat: Govt/regln'],
+  ['inventory_buildup', 'Moat: Inventory'],
+];
+
+// A moat lens sub-object → its 0–5 score (or null). trend arrow for display.
+const TREND_ARROW = { improving: '↑', stable: '→', worsening: '↓' };
+const lensScore = (o) => (o && typeof o.score === 'number' ? o.score : null);
+const moatOwnScore = (rec, key) => {
+  const f = rec.moat && rec.moat.factors && rec.moat.factors[key];
+  return f ? lensScore(f.own) : null;
+};
+function colourMoat(cell, score) {
+  if (score == null) return;
+  cell.font = score >= 4 ? { bold: true, color: GREEN } : score < 2 ? { bold: true, color: RED } : { color: GREY };
+}
+
 // Per-cell number formats by param key (real Excel numbers + a display suffix).
 const FMT = {
   market_cap: '#,##0',
@@ -119,6 +145,7 @@ export async function exportGrid(records, scope) {
     { header: 'ADTV (₹ Cr)', key: 'adtv', width: 12, style: { numFmt: '0.0' } },
     { header: 'Signals passed', key: 'passed', width: 13, style: { numFmt: '0' } },
     ...QUAL_COLS.map(([k, h]) => ({ header: h, key: `q_${k}`, width: 15 })),
+    ...MOAT_COLS.map(([k, h]) => ({ header: h, key: `m_${k}`, width: 13, style: { numFmt: '0' } })),
   ];
   ws.columns = columns;
   styleHeaderRow(ws.getRow(1));
@@ -148,8 +175,10 @@ export async function exportGrid(records, scope) {
     };
     for (const k of CHECK_KEYS) data[`sig_${k}`] = verdictOf(p, k);
     for (const [k] of QUAL_COLS) data[`q_${k}`] = qualVerdict(rec.qual, k);
+    for (const [k] of MOAT_COLS) data[`m_${k}`] = moatOwnScore(rec, k);
     const r = ws.addRow(data);
     for (const k of CHECK_KEYS) colourVerdict(r.getCell(`sig_${k}`), data[`sig_${k}`]);
+    for (const [k] of MOAT_COLS) colourMoat(r.getCell(`m_${k}`), data[`m_${k}`]);
   }
 
   ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: columns.length } };
@@ -223,6 +252,23 @@ export async function exportCompany(rec) {
     }
   } else {
     ws.addRow(['AI extraction pending for this company', '', '', '']).getCell(1).font = { italic: true, color: GREY };
+  }
+
+  sectionRow('Moat · Porter factors (0–5 on trend, higher = more favorable)');
+  if (rec.moat && rec.moat.factors) {
+    const lensCell = (o) => (lensScore(o) != null ? `${o.score}/5 ${TREND_ARROW[o.trend] || ''}`.trim() : 'N/A');
+    for (const [k] of MOAT_COLS) {
+      const f = rec.moat.factors[k];
+      if (!f) continue;
+      const own = f.own || {};
+      const news = rec.news && rec.news.factors ? rec.news.factors[k] : null;
+      const val = `Own ${lensCell(own)} · Peers ${lensCell(f.industry)}${news ? ` · News ${lensCell(news)}` : ''}`;
+      const score = lensScore(own);
+      const r = ws.addRow([f.label || k, val, score != null ? String(score) : '', own.note || '']);
+      colourMoat(r.getCell(3), score);
+    }
+  } else {
+    ws.addRow(['Moat / industry lens pending for this company', '', '', '']).getCell(1).font = { italic: true, color: GREY };
   }
 
   download(await wb.xlsx.writeBuffer(), `daksham-${slugScope(rec.name || rec.slug)}-${today()}.xlsx`);
