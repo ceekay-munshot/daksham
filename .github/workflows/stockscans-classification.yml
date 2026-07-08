@@ -1,6 +1,6 @@
 name: Stockscans classification
 
-# Manual-only. Fetches each liquid company's PUBLIC Stockscans page
+# Weekly + manual. Fetches each liquid company's PUBLIC Stockscans page
 # (/company/NSE:<symbol>) and extracts its industry classification into
 # public/data/stockscans-classification.json — later consumed by the dashboard's
 # sector filter + peer engine. No login / browser: plain fetch + parse.
@@ -15,6 +15,16 @@ on:
         description: "Resume offset (index into liquid-universe.json)."
         required: false
         default: "0"
+  # Weekly auto-refresh so the dashboard's Stockscans industries stay current.
+  # Monday 02:47 UTC (08:17 IST) — AFTER Sunday's "Weekly full refresh" has
+  # rebuilt liquid-universe.json, and off the :00/:15/:30/:45 marks GitHub queues.
+  # A scheduled run passes no inputs, so MAX_COMPANIES/START_AT resolve empty and
+  # the scraper classifies the FULL liquid set (it skips names already tagged, so
+  # this mainly picks up newly-liquid companies each week).
+  # NOTE: GitHub only fires `schedule:` from the default branch — this starts
+  # running weekly once merged to main.
+  schedule:
+    - cron: "47 2 * * 1" # 02:47 UTC Mon = 08:17 IST Mon
 
 permissions:
   contents: write
