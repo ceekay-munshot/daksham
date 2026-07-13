@@ -10,7 +10,7 @@ reads a **saved screen**, paginates through it, and writes the candidate univers
 `public/data/`.
 
 It stops at the screen list. It does **not** crawl individual company pages; the
-per-company crawl and the ₹4 Cr bhavcopy volume gate are separate, later steps
+per-company crawl and the ₹2 Cr bhavcopy volume gate are separate, later steps
 that consume `daksham-universe.json`.
 
 ### Outputs
@@ -61,7 +61,7 @@ tests, which need no browser or network.)
 `scrapers/bhavcopy-liquidity.mjs` reads `daksham-universe.json`, computes each
 NSE-listed company's **30-trading-day average daily traded value** from NSE
 "full" bhavcopy (`TURNOVER_LACS / 100 = ₹ Cr`, EQ series only), and writes the
-subset with avg **≥ ₹4 Cr** to `liquid-universe.json`. A day a symbol did not
+subset with avg **≥ ₹2 Cr** to `liquid-universe.json`. A day a symbol did not
 trade counts as 0 (the denominator is the full window). BSE-only names (numeric
 Screener slugs) have no NSE turnover and are excluded for now (counted + listed
 in the debug file).
@@ -82,7 +82,7 @@ re-download. Needs **≥ 20** valid trading days or it fails with a clear messag
 | Variable | Required | Default | Purpose |
 | --- | :---: | --- | --- |
 | `FIRECRAWL_API_KEY` | — | — | Optional fallback fetch if NSE blocks direct requests |
-| `ADTV_THRESHOLD_CR` | — | `4` | Pass threshold (₹ Cr) |
+| `ADTV_THRESHOLD_CR` | — | `2` | Pass threshold (₹ Cr) |
 | `BHAV_DAYS` | — | `30` | Trading days to average over |
 | `BHAV_MIN_DAYS` | — | `20` | Minimum valid days or the run fails |
 | `BHAV_MAX_LOOKBACK` | — | `60` | Calendar days to walk back while collecting |
@@ -350,7 +350,7 @@ default branch with a fetch + rebase retry loop and skip when there's no diff
 
 | Workflow | File | Schedule (IST) | Cron (UTC) | What it does |
 | --- | --- | --- | --- | --- |
-| **Daily liquidity** | `.github/workflows/daily-liquidity.yml` | ~06:47, Tue–Sat | `17 1 * * 2-6` | Re-runs the ₹4 Cr bhavcopy gate against the current `daksham-universe.json` → refreshes `liquid-universe.json` + `liquidity-debug.json`. Best-effort crawl of *new entrants* only. |
+| **Daily liquidity** | `.github/workflows/daily-liquidity.yml` | ~06:47, Tue–Sat | `17 1 * * 2-6` | Re-runs the ₹2 Cr bhavcopy gate against the current `daksham-universe.json` → refreshes `liquid-universe.json` + `liquidity-debug.json`. Best-effort crawl of *new entrants* only. |
 | **Weekly full** | `.github/workflows/weekly-refresh.yml` | ~23:53, Sun | `23 18 * * 0` | In order: universe scraper → bhavcopy gate → per-company crawler (≈2.5–3h, `timeout-minutes: 330`). Uploads all data as an artifact, even on a partial run. |
 
 The cron is deliberately off the `:00/:15/:30/:45` marks (GitHub queues those) and
