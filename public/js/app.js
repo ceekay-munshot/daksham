@@ -37,7 +37,7 @@ const state = {
   bySlug: new Map(),
   labels: {},
   sort: { key: 'passCount', dir: 'desc' },
-  filters: { search: '', sector: '', check: '', mcap: '', minSignals: 0, adtv: ADTV_FLOOR, industry: '' },
+  filters: { search: '', sector: '', check: '', mcap: '', minSignals: 0, adtv: ADTV_FLOOR, industry: '', concall: '' },
 };
 
 // slug(UPPER) → Stockscans industry, from the classification file.
@@ -157,6 +157,7 @@ async function load() {
     const bk = bankBySlug.get(rec.slug);
     rec.bank = bk && (bk.gross_npa_pct != null || bk.financing_margin_pct != null) ? bk : null; // lenders only
     rec.docs = docs[rec.slug] || []; // [{type, period, source, ...}] for source links
+    rec.hasConcall = rec.docs.some((d) => d.type === 'transcript'); // does the company hold earnings concalls
     rec.asOf = companiesMeta && companiesMeta.generated_at; // Screener snapshot date (quantitative tier)
     return rec;
   });
@@ -324,6 +325,10 @@ function wire() {
     state.filters.mcap = e.target.value;
     apply();
   });
+  $('concall-filter').addEventListener('change', (e) => {
+    state.filters.concall = e.target.value;
+    apply();
+  });
   // Daily-value floor: tighten the liquid set live above ₹4 Cr. Sub-floor input
   // is clamped to the floor for the applied filter mid-type; the box itself is
   // normalized on blur so typing a multi-digit value ("10") isn't fought.
@@ -418,12 +423,13 @@ function wire() {
 }
 
 function resetFilters() {
-  state.filters = { search: '', sector: '', check: '', mcap: '', minSignals: 0, adtv: ADTV_FLOOR, industry: '' };
+  state.filters = { search: '', sector: '', check: '', mcap: '', minSignals: 0, adtv: ADTV_FLOOR, industry: '', concall: '' };
   $('search').value = '';
   $('sector-filter').value = '';
   $('industry-filter').value = '';
   $('check-filter').value = '';
   $('mcap-filter').value = '';
+  $('concall-filter').value = '';
   $('adtv-filter').value = ADTV_FLOOR;
   [...$('shortlist').children].forEach((c, i) => c.classList.toggle('active', i === 0));
   apply();
@@ -435,6 +441,8 @@ function matches(rec, f) {
   if (f.adtv > ADTV_FLOOR && rec.adtv != null && rec.adtv < f.adtv) return false;
   if (f.sector && rec.sector !== f.sector) return false;
   if (f.industry && rec.industry !== f.industry) return false;
+  if (f.concall === 'yes' && !rec.hasConcall) return false;
+  if (f.concall === 'no' && rec.hasConcall) return false;
   if (f.check && (!rec.params || rec.params[f.check].verdict !== 'PASS')) return false;
   if (f.minSignals && (rec.passCount == null || rec.passCount < f.minSignals)) return false;
   if (f.mcap) {
@@ -473,6 +481,7 @@ function renderChips() {
   if (f.adtv > ADTV_FLOOR) chips.push(['adtv', `≥ ₹${f.adtv} Cr ADV`]);
   if (f.sector) chips.push(['sector', f.sector]);
   if (f.industry) chips.push(['industry', f.industry]);
+  if (f.concall) chips.push(['concall', f.concall === 'yes' ? 'Does concalls' : 'No concalls']);
   if (f.check) chips.push(['check', state.labels[f.check] || f.check]);
   if (f.mcap) chips.push(['mcap', $('mcap-filter').selectedOptions[0].textContent]);
   if (f.search) chips.push(['search', `"${f.search}"`]);
@@ -497,7 +506,7 @@ function renderChips() {
           $('adtv-filter').value = ADTV_FLOOR;
         } else {
           state.filters[k] = '';
-          const map = { sector: 'sector-filter', industry: 'industry-filter', check: 'check-filter', mcap: 'mcap-filter', search: 'search' };
+          const map = { sector: 'sector-filter', industry: 'industry-filter', check: 'check-filter', mcap: 'mcap-filter', concall: 'concall-filter', search: 'search' };
           if (map[k]) $(map[k]).value = '';
         }
         apply();
