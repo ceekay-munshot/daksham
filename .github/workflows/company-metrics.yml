@@ -17,6 +17,11 @@ on:
         description: "Max companies to crawl this run (blank = all). Set 3-5 for a smoke test."
         required: false
         default: ""
+      only_new:
+        description: "Crawl only liquid names not yet in companies.json (fast top-up after a gate change). Uncheck for a full re-crawl."
+        type: boolean
+        required: false
+        default: true
       debug_dump_html:
         description: "Dump each company's post-expansion HTML as an artifact (DOM debugging)."
         type: boolean
@@ -59,6 +64,7 @@ jobs:
           SCREENER_PASSWORD: ${{ secrets.SCREENER_PASSWORD }}
           START_AT: ${{ inputs.start_at }}
           MAX_COMPANIES: ${{ inputs.max_companies }}
+          ONLY_NEW: ${{ inputs.only_new }}
           DEBUG_DUMP_HTML: ${{ inputs.debug_dump_html }}
         run: node scrapers/company-metrics.mjs
 
