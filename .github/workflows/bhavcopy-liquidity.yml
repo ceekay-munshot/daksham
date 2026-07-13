@@ -2,14 +2,14 @@ name: Bhavcopy volume gate
 
 # Manual-only for now. Reads public/data/daksham-universe.json, computes each
 # NSE name's 30-day average daily traded value from NSE bhavcopy, and commits the
-# >= ₹4 Cr subset to public/data/liquid-universe.json.
+# >= ₹2 Cr subset to public/data/liquid-universe.json.
 on:
   workflow_dispatch:
     inputs:
       threshold_cr:
         description: "ADTV threshold in ₹ Cr (pass if avg daily traded value >= this)."
         required: false
-        default: "4"
+        default: "2"
       days:
         description: "Trading days to average over."
         required: false
