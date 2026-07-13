@@ -3,7 +3,7 @@
 //
 // Reads public/data/daksham-universe.json, computes each NSE-listed company's
 // 30-trading-day average daily traded VALUE from NSE "full" bhavcopy, and writes
-// the subset with avg >= ₹4 Cr to public/data/liquid-universe.json. BSE-only
+// the subset with avg >= ₹2 Cr to public/data/liquid-universe.json. BSE-only
 // names (numeric Screener slugs) have no NSE turnover and are excluded for now.
 //
 //   node scrapers/bhavcopy-liquidity.mjs
@@ -35,14 +35,14 @@ function readConfig() {
     BHAV_DAYS = '30',
     BHAV_MIN_DAYS = '20',
     BHAV_MAX_LOOKBACK = '60',
-    ADTV_THRESHOLD_CR = '4',
+    ADTV_THRESHOLD_CR = '2',
   } = process.env;
   return {
     firecrawlKey: FIRECRAWL_API_KEY.trim(),
     want: Math.max(1, parseInt(BHAV_DAYS, 10) || 30),
     minDays: Math.max(1, parseInt(BHAV_MIN_DAYS, 10) || 20),
     maxLookback: Math.max(1, parseInt(BHAV_MAX_LOOKBACK, 10) || 60),
-    threshold: Number(ADTV_THRESHOLD_CR) || 4,
+    threshold: Number(ADTV_THRESHOLD_CR) || 2,
   };
 }
 

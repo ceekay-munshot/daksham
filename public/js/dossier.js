@@ -606,7 +606,7 @@ export function openDossier(rec) {
         <div class="pending-card">
           <span class="pending-ic"><i data-lucide="hourglass"></i></span>
           <div class="pending-title">Metrics pending</div>
-          <p>This name just entered the liquid universe (avg daily traded value ≥ ₹4 Cr over the last 30 sessions). Its full fundamentals and signal checks are gathered on the next weekly refresh.</p>
+          <p>This name just entered the liquid universe (avg daily traded value ≥ ₹2 Cr over the last 30 sessions). Its full fundamentals and signal checks are gathered on the next weekly refresh.</p>
           <a class="src-chip" href="${esc(screener)}" target="_blank" rel="noopener">
             <span class="src-ic"><i data-lucide="shield-check"></i></span><span>View on <b>Screener.in</b></span><i data-lucide="external-link" class="src-ext"></i>
           </a>

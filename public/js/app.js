@@ -27,10 +27,10 @@ const setText = (id, v) => {
   if (el) el.textContent = v;
 };
 
-// ₹4 Cr / 30-day ADV is the data pipeline's hard liquidity floor: names below it
+// ₹2 Cr / 30-day ADV is the data pipeline's hard liquidity floor: names below it
 // were never crawled, so the dashboard can tighten the liquid set ABOVE this
 // value live (client-side), but never below it. See bhavcopy-liquidity.mjs.
-const ADTV_FLOOR = 4;
+const ADTV_FLOOR = 2;
 
 const state = {
   records: [],
@@ -246,7 +246,7 @@ function hydrateHero(liquidCount, cMeta, uMeta) {
 
 // Headline stats for the hero funnel + KPI band. Computed over whatever set is
 // passed: the full liquid spine at load, or the ADTV-gated subset once the
-// daily-value input is raised above the ₹4 Cr floor.
+// daily-value input is raised above the ₹2 Cr floor.
 function universeStats(recs) {
   const complete = recs.filter((r) => !r.pending);
   const sectors = new Set(recs.map((r) => r.sector).filter(Boolean)).size;
@@ -329,7 +329,7 @@ function wire() {
     state.filters.concall = e.target.value;
     apply();
   });
-  // Daily-value floor: tighten the liquid set live above ₹4 Cr. Sub-floor input
+  // Daily-value floor: tighten the liquid set live above ₹2 Cr. Sub-floor input
   // is clamped to the floor for the applied filter mid-type; the box itself is
   // normalized on blur so typing a multi-digit value ("10") isn't fought.
   $('adtv-filter').addEventListener(
