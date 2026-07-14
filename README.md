@@ -62,30 +62,34 @@ tests, which need no browser or network.)
 NSE-listed company's **30-trading-day average daily traded value** from NSE
 "full" bhavcopy (`TURNOVER_LACS / 100 = ₹ Cr`, EQ series only), and writes the
 subset with avg **≥ ₹2 Cr** to `liquid-universe.json`. A day a symbol did not
-trade counts as 0 (the denominator is the full window). BSE-only names (numeric
-Screener slugs) have no NSE turnover and are excluded for now (counted + listed
-in the debug file).
+trade counts as 0 (the denominator is the full window). **BSE-only names** (numeric
+Screener slugs) are gated on **BSE bhavcopy turnover** over the same dates
+(`FinInstrmId` / `TtlTrfVal`, ₹ → Cr), tagged `liquidity_source: "bse"`. BSE is
+**best-effort and non-fatal**: if fewer than `BHAV_MIN_DAYS` BSE days come back
+(or `INCLUDE_BSE=0`), BSE-only names are excluded and the NSE gate is unaffected.
 
-It primes an NSE session (homepage GET for cookies, then cookie + UA + Referer on
-each archive fetch) and caches CSVs under `.cache/bhav/` so re-runs don't
-re-download. Needs **≥ 20** valid trading days or it fails with a clear message.
+It primes NSE + BSE sessions (homepage GET for cookies, then cookie + UA + Referer
+on each archive fetch) and caches CSVs under `.cache/bhav/` and `.cache/bse/` so
+re-runs don't re-download. Needs **≥ 20** valid NSE trading days or it fails with a
+clear message.
 
 ### Outputs
 
 | File | Contents |
 | --- | --- |
-| `public/data/liquid-universe.json` | Passing rows = original universe row + `{ adtv_30d_cr, days_counted, liquidity_source: "nse" }` |
-| `public/data/liquidity-debug.json` | `{ generated_at, threshold_cr, days_used, universe_in, passed, failed, bse_only_excluded, bse_only_slugs, sample_failed }` |
+| `public/data/liquid-universe.json` | Passing rows = original universe row + `{ adtv_30d_cr, days_counted, liquidity_source: "nse" \| "bse" }` |
+| `public/data/liquidity-debug.json` | `{ generated_at, threshold_cr, days_used, universe_in, passed, failed, bse_included, bse_passed, bse_failed, bse_only_excluded, bse_only_slugs, sample_failed }` |
 
 ### Environment / secrets
 
 | Variable | Required | Default | Purpose |
 | --- | :---: | --- | --- |
-| `FIRECRAWL_API_KEY` | — | — | Optional fallback fetch if NSE blocks direct requests |
+| `FIRECRAWL_API_KEY` | — | — | Optional fallback fetch if NSE/BSE blocks direct requests |
 | `ADTV_THRESHOLD_CR` | — | `2` | Pass threshold (₹ Cr) |
 | `BHAV_DAYS` | — | `30` | Trading days to average over |
-| `BHAV_MIN_DAYS` | — | `20` | Minimum valid days or the run fails |
+| `BHAV_MIN_DAYS` | — | `20` | Minimum valid days or the run fails (also the BSE floor to include BSE names) |
 | `BHAV_MAX_LOOKBACK` | — | `60` | Calendar days to walk back while collecting |
+| `INCLUDE_BSE` | — | `1` | Gate BSE-only names on BSE turnover (`0` to exclude) |
 
 ### Run locally
 

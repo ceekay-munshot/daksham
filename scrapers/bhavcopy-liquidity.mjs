@@ -3,8 +3,10 @@
 //
 // Reads public/data/daksham-universe.json, computes each NSE-listed company's
 // 30-trading-day average daily traded VALUE from NSE "full" bhavcopy, and writes
-// the subset with avg >= ₹2 Cr to public/data/liquid-universe.json. BSE-only
-// names (numeric Screener slugs) have no NSE turnover and are excluded for now.
+// the subset with avg >= ₹2 Cr to public/data/liquid-universe.json. BSE-only names
+// (numeric Screener slugs) are gated on BSE bhavcopy turnover over the same dates
+// (INCLUDE_BSE=1, default) — best-effort, so a BSE fetch failure never breaks the
+// NSE gate; set INCLUDE_BSE=0 to exclude BSE-only names entirely.
 //
 //   node scrapers/bhavcopy-liquidity.mjs
 //   FIRECRAWL_API_KEY=... node scrapers/bhavcopy-liquidity.mjs   # optional fallback
@@ -13,12 +15,19 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { parseBhavcopy, buildTurnoverIndex, computeLiquidUniverse } from './lib/bhav.mjs';
+import {
+  parseBhavcopy,
+  parseBseBhavcopy,
+  buildTurnoverIndex,
+  buildBseTurnoverIndex,
+  computeLiquidUniverse,
+} from './lib/bhav.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
 const OUT_DIR = path.join(ROOT, 'public', 'data');
 const CACHE_DIR = path.join(ROOT, '.cache', 'bhav');
+const BSE_CACHE_DIR = path.join(ROOT, '.cache', 'bse');
 const UNIVERSE_PATH = path.join(OUT_DIR, 'daksham-universe.json');
 
 const UA =
@@ -26,8 +35,11 @@ const UA =
   '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 const NSE_HOME = 'https://www.nseindia.com/';
 const BHAV_BASE = 'https://nsearchives.nseindia.com/products/content';
+const BSE_HOME = 'https://www.bseindia.com/';
+const BSE_BHAV_BASE = 'https://www.bseindia.com/download/BhavCopy/Equity';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const truthy = (v) => ['1', 'true', 'yes', 'on'].includes(String(v ?? '').trim().toLowerCase());
 
 function readConfig() {
   const {
@@ -36,6 +48,7 @@ function readConfig() {
     BHAV_MIN_DAYS = '20',
     BHAV_MAX_LOOKBACK = '60',
     ADTV_THRESHOLD_CR = '2',
+    INCLUDE_BSE = '1',
   } = process.env;
   return {
     firecrawlKey: FIRECRAWL_API_KEY.trim(),
@@ -43,6 +56,7 @@ function readConfig() {
     minDays: Math.max(1, parseInt(BHAV_MIN_DAYS, 10) || 20),
     maxLookback: Math.max(1, parseInt(BHAV_MAX_LOOKBACK, 10) || 60),
     threshold: Number(ADTV_THRESHOLD_CR) || 2,
+    includeBse: truthy(INCLUDE_BSE),
   };
 }
 
@@ -190,10 +204,107 @@ async function collectBhavcopies(c) {
   return collected;
 }
 
+// ── BSE bhavcopy (for BSE-only names) — best-effort, non-fatal ──────────────
+const bseBhavUrl = (ymd) => `${BSE_BHAV_BASE}/BhavCopy_BSE_CM_0_0_0_${ymd}_F_0000.CSV`;
+const bseCacheFile = (ymd) => path.join(BSE_CACHE_DIR, `BhavCopy_BSE_CM_${ymd}.csv`);
+const isoToYmd = (iso) => String(iso).replace(/-/g, ''); // 2026-07-13 -> 20260713
+
+function readBseCache(ymd) {
+  const f = bseCacheFile(ymd);
+  if (!existsSync(f)) return null;
+  try {
+    const t = readFileSync(f, 'utf8');
+    return t && t.trim() ? t : null;
+  } catch {
+    return null;
+  }
+}
+function writeBseCache(ymd, text) {
+  mkdirSync(BSE_CACHE_DIR, { recursive: true });
+  writeFileSync(bseCacheFile(ymd), text);
+}
+
+async function primeBseSession() {
+  try {
+    const res = await fetch(BSE_HOME, {
+      headers: { 'User-Agent': UA, Accept: 'text/html,*/*;q=0.8', 'Accept-Language': 'en-US,en;q=0.9' },
+    });
+    await res.arrayBuffer().catch(() => {});
+    const setCookies = typeof res.headers.getSetCookie === 'function' ? res.headers.getSetCookie() : [];
+    return setCookies.map((cc) => cc.split(';')[0]).join('; ');
+  } catch {
+    return '';
+  }
+}
+
+async function fetchBseBhav(ymd, cookie) {
+  try {
+    const res = await fetch(bseBhavUrl(ymd), {
+      headers: {
+        'User-Agent': UA,
+        Accept: 'text/csv,application/csv,application/octet-stream,*/*',
+        'Accept-Language': 'en-US,en;q=0.9',
+        Referer: BSE_HOME,
+        ...(cookie ? { Cookie: cookie } : {}),
+      },
+    });
+    if (res.status === 200) return { status: 200, text: await res.text() };
+    await res.arrayBuffer().catch(() => {});
+    return { status: res.status };
+  } catch {
+    return { status: 0 };
+  }
+}
+
+async function fetchBseCsvText(ymd, session) {
+  let res = await fetchBseBhav(ymd, session.cookie);
+  if (res.status === 401 || res.status === 403) {
+    session.cookie = await primeBseSession();
+    res = await fetchBseBhav(ymd, session.cookie);
+  }
+  if (res.status === 200 && res.text) return res.text;
+  if (res.status === 404) return null; // not published for that day
+  if (session.firecrawlKey) {
+    const t = await fetchViaFirecrawl(bseBhavUrl(ymd), session.firecrawlKey);
+    if (t) return t;
+  }
+  return null;
+}
+
+// Fetch BSE bhavcopy for the SAME trading dates NSE gave us, so both series share
+// one window (a BSE day that fails to fetch simply counts as 0 turnover — the same
+// faithful average as the NSE side). Returns the collected row-arrays.
+async function collectBseBhavcopies(isoDates, c) {
+  const session = { cookie: await primeBseSession(), firecrawlKey: c.firecrawlKey };
+  const days = [];
+  for (const iso of isoDates) {
+    const ymd = isoToYmd(iso);
+    let text = readBseCache(ymd);
+    const cached = text != null;
+    if (!cached) {
+      text = await fetchBseCsvText(ymd, session);
+      if (text == null) continue;
+    }
+    let rows;
+    try {
+      rows = parseBseBhavcopy(text);
+    } catch {
+      rows = [];
+    }
+    if (!rows.length) continue;
+    if (!cached) writeBseCache(ymd, text);
+    days.push(rows);
+    console.log(`  bse    : ${iso} — ${rows.length} scrips  [${days.length}/${isoDates.length}]${cached ? ' (cache)' : ''}`);
+    if (!cached) await sleep(250);
+  }
+  return days;
+}
+
 async function main() {
   const c = readConfig();
   console.log('Bhavcopy volume gate');
   console.log(`  rule   : avg daily traded value >= ₹${c.threshold} Cr over ${c.want} trading days`);
+  console.log(`  bse    : ${c.includeBse ? 'enabled (best-effort — BSE-only names gated on BSE turnover)' : 'disabled (BSE-only names excluded)'}`);
 
   if (!existsSync(UNIVERSE_PATH)) {
     throw new Error(`Universe file not found: ${UNIVERSE_PATH}. Run the universe scraper first.`);
@@ -208,9 +319,23 @@ async function main() {
   const turnoverIndex = buildTurnoverIndex(collected.map((d) => d.rows));
   const daysUsed = collected.map((d) => d.iso);
 
+  // BSE-only names (numeric slugs): gate on BSE turnover over the same dates. Never
+  // fatal — if too few BSE days come back, log it and fall back to excluding them.
+  let bseTurnoverIndex = null;
+  if (c.includeBse) {
+    const bseDays = await collectBseBhavcopies(daysUsed, c);
+    if (bseDays.length >= c.minDays) {
+      bseTurnoverIndex = buildBseTurnoverIndex(bseDays);
+      console.log(`  bse    : ${bseDays.length}/${daysUsed.length} days usable — including BSE-only names`);
+    } else {
+      console.warn(`  bse    : only ${bseDays.length} BSE days (need >= ${c.minDays}) — excluding BSE-only names this run`);
+    }
+  }
+
   const { liquid, debug } = computeLiquidUniverse({
     universe,
     turnoverIndex,
+    bseTurnoverIndex,
     daysUsed,
     threshold: c.threshold,
   });
@@ -221,7 +346,8 @@ async function main() {
 
   console.log(
     `\nDone — days_used: ${debug.days_used.length}, universe_in: ${debug.universe_in}, ` +
-      `passed: ${debug.passed}, failed: ${debug.failed}, bse_only_excluded: ${debug.bse_only_excluded}`
+      `nse_passed: ${debug.passed}, nse_failed: ${debug.failed}, ` +
+      `bse_passed: ${debug.bse_passed}, bse_failed: ${debug.bse_failed}, bse_only_excluded: ${debug.bse_only_excluded}`
   );
   console.log(`  ${path.join(OUT_DIR, 'liquid-universe.json')}`);
   console.log(`  ${path.join(OUT_DIR, 'liquidity-debug.json')}`);

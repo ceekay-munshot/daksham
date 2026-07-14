@@ -14,6 +14,11 @@ on:
         description: "Trading days to average over."
         required: false
         default: "30"
+      include_bse:
+        description: "Also gate BSE-only names on BSE bhavcopy turnover (best-effort; never breaks the NSE gate)."
+        type: boolean
+        required: false
+        default: true
 
 permissions:
   contents: write
@@ -50,7 +55,9 @@ jobs:
       - name: Cache bhavcopy CSVs
         uses: actions/cache@v4
         with:
-          path: .cache/bhav
+          path: |
+            .cache/bhav
+            .cache/bse
           key: bhav-${{ github.run_id }}
           restore-keys: |
             bhav-
@@ -60,6 +67,7 @@ jobs:
           FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
           ADTV_THRESHOLD_CR: ${{ inputs.threshold_cr }}
           BHAV_DAYS: ${{ inputs.days }}
+          INCLUDE_BSE: ${{ inputs.include_bse && '1' || '0' }}
         run: node scrapers/bhavcopy-liquidity.mjs
 
       - name: Upload liquidity artifact
