@@ -26,17 +26,60 @@ const SIGNAL_HEADERS = {
   inst_trend_up: 'Institutional ↑',
 };
 
-// Qualitative params (own-document lens) — key → short header.
-const QUAL_COLS = [
-  ['guidance_revenue', 'Q: Rev guidance'],
-  ['guidance_margin', 'Q: Margin guidance'],
-  ['order_book', 'Q: Order book'],
-  ['mgmt_tone', 'Q: Mgmt tone'],
-  ['strategic_stocking', 'Q: Stocking'],
-  ['market_share', 'Q: Market share'],
-  ['demand_anticipation', 'Q: Demand 1-5'],
-  ['capital_raised', 'Q: Capital raised'],
+// Structured qualitative columns (own-document lens) — mirrors PARAMS[].fields in
+// scrapers/lib/qualitative.mjs. Each is a NUMBER you can threshold on or a fixed
+// ENUM you can multi-select — never a bare "was it mentioned" flag. `demand` is the
+// standalone 1–5 scale (the param's verdict, not a sub-field).
+const QUAL_COLUMNS = [
+  { param: 'guidance_revenue', field: 'rev_low_pct', header: 'Rev guid – Low %', kind: 'num' },
+  { param: 'guidance_revenue', field: 'rev_high_pct', header: 'Rev guid – High %', kind: 'num' },
+  { param: 'guidance_revenue', field: 'rev_vs_prior', header: 'Rev guid vs prior', kind: 'enum' },
+  { param: 'guidance_margin', field: 'margin_direction', header: 'Margin – Direction', kind: 'enum' },
+  { param: 'guidance_margin', field: 'margin_level_pct', header: 'Margin – Level %', kind: 'num' },
+  { param: 'order_book', field: 'ob_trend', header: 'Order book trend', kind: 'enum' },
+  { param: 'order_book', field: 'ob_size_cr', header: 'Order book (₹ Cr)', kind: 'num' },
+  { param: 'order_book', field: 'ob_book_to_bill', header: 'Book-to-bill (x)', kind: 'num' },
+  { param: 'mgmt_tone', field: 'tone_grade', header: 'Mgmt tone', kind: 'enum' },
+  { param: 'strategic_stocking', field: 'stocking_grade', header: 'Channel stocking', kind: 'enum' },
+  { param: 'market_share', field: 'ms_trend', header: 'Market share trend', kind: 'enum' },
+  { param: 'demand_anticipation', field: null, header: 'Forward demand (1=strong…5=weak)', kind: 'demand' },
+  { param: 'capital_raised', field: 'cap_amount_cr', header: 'Capital raised (₹ Cr)', kind: 'num' },
+  { param: 'capital_raised', field: 'cap_purpose', header: 'Capital purpose', kind: 'enum' },
+  { param: 'capital_raised', field: 'cap_dilution_pct', header: 'Dilution %', kind: 'num' },
 ];
+
+// Coverage flag (the client's NA-disambiguation): "Covered" = we read ≥1 of this
+// company's own transcripts; "Not covered" = none harvested, so every blank qual
+// cell means "we haven't looked", not "management didn't disclose". A blank enum on
+// a COVERED row reads as "Not disclosed" (management didn't say).
+const isCovered = (rec) => !!(rec.qual && rec.qual.meta && Number(rec.qual.meta.docs_used) > 0);
+
+// Read one structured qual value for a record, honouring coverage. Numbers → number
+// or null; enums → the category, or 'Not covered' when the company was never read.
+function qualCell(rec, col) {
+  const covered = isCovered(rec);
+  if (col.kind === 'demand') {
+    const v = rec.qual && rec.qual.params && rec.qual.params.demand_anticipation;
+    if (!covered) return { text: 'Not covered' };
+    const n = v && /^[1-5]$/.test(String(v.verdict)) ? Number(v.verdict) : null;
+    return { number: n };
+  }
+  const p = rec.qual && rec.qual.params && rec.qual.params[col.param];
+  const f = p && p.fields ? p.fields[col.field] : undefined;
+  if (col.kind === 'num') {
+    return { number: covered && typeof f === 'number' ? f : null };
+  }
+  // enum
+  if (!covered) return { text: 'Not covered' };
+  return { text: f || 'Not disclosed' };
+}
+
+// Excel column key + number format per structured qual field.
+const qkey = (col) => `q_${col.field || col.param}`;
+const QUAL_FMT = {
+  rev_low_pct: '0.0', rev_high_pct: '0.0', margin_level_pct: '0.0', cap_dilution_pct: '0.0',
+  ob_size_cr: '#,##0', cap_amount_cr: '#,##0', ob_book_to_bill: '0.00',
+};
 
 // Moat / Porter factors (industry lens) — key → short header. Scored 0–5 on
 // TREND, higher = more favorable. The grid export carries the company's OWN
@@ -115,7 +158,6 @@ function download(buffer, filename) {
 }
 
 const verdictOf = (params, key) => (params && params[key] ? params[key].verdict || '' : '');
-const qualVerdict = (qual, key) => (qual && qual.params && qual.params[key] ? qual.params[key].verdict : '');
 
 // ── Grid export — one row per company, honouring the current filtered view ───
 export async function exportGrid(records, scope) {
@@ -144,7 +186,13 @@ export async function exportGrid(records, scope) {
     { header: '3Y GM Δ (pp)', key: 'gmDelta', width: 13, style: { numFmt: '0.0' } },
     { header: 'ADTV (₹ Cr)', key: 'adtv', width: 12, style: { numFmt: '0.0' } },
     { header: 'Signals passed', key: 'passed', width: 13, style: { numFmt: '0' } },
-    ...QUAL_COLS.map(([k, h]) => ({ header: h, key: `q_${k}`, width: 15 })),
+    { header: 'Qual coverage', key: 'qual_cov', width: 13 },
+    ...QUAL_COLUMNS.map((col) => {
+      const c = { header: col.header, key: qkey(col), width: col.kind === 'enum' ? 16 : 14 };
+      if (col.kind === 'num') c.style = { numFmt: QUAL_FMT[col.field] || '0.0' };
+      else if (col.kind === 'demand') c.style = { numFmt: '0' };
+      return c;
+    }),
     ...MOAT_COLS.map(([k, h]) => ({ header: h, key: `m_${k}`, width: 13, style: { numFmt: '0' } })),
   ];
   ws.columns = columns;
@@ -174,10 +222,15 @@ export async function exportGrid(records, scope) {
       passed: rec.pending ? null : rec.passCount,
     };
     for (const k of CHECK_KEYS) data[`sig_${k}`] = verdictOf(p, k);
-    for (const [k] of QUAL_COLS) data[`q_${k}`] = qualVerdict(rec.qual, k);
+    data.qual_cov = isCovered(rec) ? 'Covered' : 'Not covered';
+    for (const col of QUAL_COLUMNS) {
+      const cell = qualCell(rec, col);
+      data[qkey(col)] = 'number' in cell ? cell.number : cell.text;
+    }
     for (const [k] of MOAT_COLS) data[`m_${k}`] = moatOwnScore(rec, k);
     const r = ws.addRow(data);
     for (const k of CHECK_KEYS) colourVerdict(r.getCell(`sig_${k}`), data[`sig_${k}`]);
+    if (data.qual_cov === 'Not covered') r.getCell('qual_cov').font = { color: GREY };
     for (const [k] of MOAT_COLS) colourMoat(r.getCell(`m_${k}`), data[`m_${k}`]);
   }
 
@@ -244,11 +297,21 @@ export async function exportCompany(rec) {
 
   sectionRow('Qualitative · own-document lens');
   if (rec.qual && rec.qual.params) {
-    for (const [k] of QUAL_COLS) {
-      const q = rec.qual.params[k];
+    const covered = isCovered(rec);
+    ws.addRow(['Coverage', covered ? 'Covered — own transcript(s) read' : 'Not covered — no transcript harvested', '', '']).getCell(2).font = covered
+      ? { color: GREEN }
+      : { color: GREY };
+    for (const pk of [...new Set(QUAL_COLUMNS.map((c) => c.param))]) {
+      const q = rec.qual.params[pk];
       if (!q) continue;
       const r = ws.addRow([q.label, String(q.value ?? ''), q.verdict || '', q.note || '']);
       colourVerdict(r.getCell(3), q.verdict);
+      // Structured sub-fields, indented — the deep file mirrors the master columns.
+      for (const col of QUAL_COLUMNS.filter((c) => c.param === pk && c.field)) {
+        const cell = qualCell(rec, col);
+        const val = 'number' in cell ? (cell.number == null ? '' : cell.number) : cell.text;
+        ws.addRow([`    • ${col.header}`, val, '', '']).getCell(1).font = { color: GREY };
+      }
     }
   } else {
     ws.addRow(['AI extraction pending for this company', '', '', '']).getCell(1).font = { italic: true, color: GREY };
