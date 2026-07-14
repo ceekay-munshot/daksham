@@ -233,9 +233,19 @@ deduped and capped (`MAX_INPUT_CHARS`, default 24,000 ≈ 6k tokens). That's a ~
 token cut and less noise → better accuracy. No usable docs → every field NA.
 
 **Params** (each → a verdict object `{ key, label, value, verdict, output_type,
-note, confidence, source }`): `guidance_revenue`, `guidance_margin` (implied);
+note, confidence, source, fields }`): `guidance_revenue`, `guidance_margin` (implied);
 `order_book`, `mgmt_tone`, `market_share` (pass/fail); `strategic_stocking`
 (pos/neu/neg); `demand_anticipation` (1–5); `capital_raised` (pass/flag).
+
+Alongside the verdict, every param also carries a **`fields`** object — the
+structured, screen-on-it sub-values the master Excel export surfaces as columns
+(a NUMBER you can threshold, or a fixed ENUM you can multi-select — never a bare
+"was it mentioned" flag): revenue guidance low/high % + vs-prior
+(Raised/Maintained/Cut); margin direction + level %; order-book trend + ₹Cr +
+book-to-bill; graded tone; channel-stocking grade; market-share trend; capital
+₹Cr + purpose + dilution %. The export also carries a **coverage flag** (Covered
+vs Not covered) so a blank cell reads as *not covered* (no transcript read) vs
+*not disclosed* (read, but management didn't say) — never ambiguous.
 
 **Provider — free by default, auto-picked by whichever key is set:**
 

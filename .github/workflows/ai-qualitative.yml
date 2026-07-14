@@ -12,13 +12,18 @@ on:
   workflow_dispatch:
     inputs:
       max_companies:
-        description: "Companies to extract this run (858 = all; it resumes, so just re-run if it stops)."
+        description: "Companies to extract this run (1200 = all; it resumes, so just re-run if it stops)."
         required: false
-        default: "858"
+        default: "1200"
       start_at:
         description: "Resume offset (leave 0 — done companies are skipped automatically)."
         required: false
         default: "0"
+      force:
+        description: "Re-extract EVERY company even if already done (needed after a schema change, e.g. new structured fields)."
+        type: boolean
+        required: false
+        default: false
       model:
         description: "Model id (only with a single provider). Blank = each provider's default."
         required: false
@@ -81,11 +86,13 @@ jobs:
           # On scheduled runs inputs are empty — fall back to the free-tier defaults.
           # Blank PROVIDER + MODEL => round-robin every key set (Gemini + Groq) at
           # each provider's default model, failing over when one is rate-limited.
-          MAX_COMPANIES: ${{ inputs.max_companies || '858' }}
+          MAX_COMPANIES: ${{ inputs.max_companies || '1200' }}
           START_AT: ${{ inputs.start_at || '0' }}
           PROVIDER: ${{ inputs.provider }}
           MODEL: ${{ inputs.model }}
           RPM: ${{ inputs.rpm || '10' }}
+          # Manual force re-extract (schema change); blank on scheduled runs = incremental.
+          FORCE: ${{ inputs.force && '1' || '' }}
         run: node scrapers/ai-extract.mjs
 
       - name: Commit qualitative data
