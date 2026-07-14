@@ -126,9 +126,15 @@ async function fetchBhav(ddmmyyyy, cookie) {
   }
 }
 
-// Optional fallback when NSE blocks direct fetches. Best-effort: asks Firecrawl
-// for the raw content and accepts it only if it looks like a bhavcopy CSV.
-async function fetchViaFirecrawl(url, key) {
+// Marker columns that identify a real bhavcopy CSV (vs a block/error page), so a
+// Firecrawl payload is only accepted if it looks like the right exchange's file.
+const NSE_MARKER = /SYMBOL/i;
+const BSE_MARKER = /FinInstrmId|TtlTrfVal|SC_CODE|NET_TURNOV/i;
+
+// Optional fallback when the exchange blocks direct fetches. Best-effort: asks
+// Firecrawl for the raw content and accepts it only if `marker` matches — NSE and
+// BSE bhavcopies have different headers, so the caller passes the right marker.
+async function fetchViaFirecrawl(url, key, marker = NSE_MARKER) {
   try {
     const res = await fetch('https://api.firecrawl.dev/v1/scrape', {
       method: 'POST',
@@ -138,7 +144,7 @@ async function fetchViaFirecrawl(url, key) {
     if (!res.ok) return null;
     const data = await res.json().catch(() => null);
     const content = data?.data?.rawHtml ?? data?.data?.html ?? data?.data?.markdown ?? null;
-    return content && String(content).includes('SYMBOL') ? String(content) : null;
+    return content && marker.test(String(content)) ? String(content) : null;
   } catch {
     return null;
   }
@@ -265,7 +271,7 @@ async function fetchBseCsvText(ymd, session) {
   if (res.status === 200 && res.text) return res.text;
   if (res.status === 404) return null; // not published for that day
   if (session.firecrawlKey) {
-    const t = await fetchViaFirecrawl(bseBhavUrl(ymd), session.firecrawlKey);
+    const t = await fetchViaFirecrawl(bseBhavUrl(ymd), session.firecrawlKey, BSE_MARKER);
     if (t) return t;
   }
   return null;
