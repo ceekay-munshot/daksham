@@ -53,24 +53,31 @@ const QUAL_COLUMNS = [
 // cell means "we haven't looked", not "management didn't disclose". A blank enum on
 // a COVERED row reads as "Not disclosed" (management didn't say).
 const isCovered = (rec) => !!(rec.qual && rec.qual.meta && Number(rec.qual.meta.docs_used) > 0);
+// True once this company was extracted under the structured-fields schema (any param
+// carries `fields`). Covered rows without it predate the schema — their sub-fields
+// are unknown, NOT "not disclosed", until the forced re-extraction runs.
+const isReextracted = (rec) => !!(rec.qual && rec.qual.params && Object.values(rec.qual.params).some((p) => p && p.fields));
 
 // Read one structured qual value for a record, honouring coverage. Numbers → number
-// or null; enums → the category, or 'Not covered' when the company was never read.
+// or null; enums → the category / 'Not covered' (never read) / 'Pending' (read but
+// not yet re-extracted under the new schema — never a false "Not disclosed").
 function qualCell(rec, col) {
   const covered = isCovered(rec);
+  const p = rec.qual && rec.qual.params && rec.qual.params[col.param];
+  const pending = covered && !(p && p.fields); // covered but pre-schema — sub-fields unknown
   if (col.kind === 'demand') {
-    const v = rec.qual && rec.qual.params && rec.qual.params.demand_anticipation;
+    // demand is the param's own 1–5 verdict — present even on legacy rows, so it's valid.
     if (!covered) return { text: 'Not covered' };
-    const n = v && /^[1-5]$/.test(String(v.verdict)) ? Number(v.verdict) : null;
+    const n = p && /^[1-5]$/.test(String(p.verdict)) ? Number(p.verdict) : null;
     return { number: n };
   }
-  const p = rec.qual && rec.qual.params && rec.qual.params[col.param];
   const f = p && p.fields ? p.fields[col.field] : undefined;
   if (col.kind === 'num') {
-    return { number: covered && typeof f === 'number' ? f : null };
+    return { number: !covered || pending || typeof f !== 'number' ? null : f };
   }
   // enum
   if (!covered) return { text: 'Not covered' };
+  if (pending) return { text: 'Pending' };
   return { text: f || 'Not disclosed' };
 }
 
@@ -222,7 +229,7 @@ export async function exportGrid(records, scope) {
       passed: rec.pending ? null : rec.passCount,
     };
     for (const k of CHECK_KEYS) data[`sig_${k}`] = verdictOf(p, k);
-    data.qual_cov = isCovered(rec) ? 'Covered' : 'Not covered';
+    data.qual_cov = !isCovered(rec) ? 'Not covered' : isReextracted(rec) ? 'Covered' : 'Covered · pending re-extract';
     for (const col of QUAL_COLUMNS) {
       const cell = qualCell(rec, col);
       data[qkey(col)] = 'number' in cell ? cell.number : cell.text;
@@ -230,7 +237,7 @@ export async function exportGrid(records, scope) {
     for (const [k] of MOAT_COLS) data[`m_${k}`] = moatOwnScore(rec, k);
     const r = ws.addRow(data);
     for (const k of CHECK_KEYS) colourVerdict(r.getCell(`sig_${k}`), data[`sig_${k}`]);
-    if (data.qual_cov === 'Not covered') r.getCell('qual_cov').font = { color: GREY };
+    if (data.qual_cov !== 'Covered') r.getCell('qual_cov').font = { color: GREY };
     for (const [k] of MOAT_COLS) colourMoat(r.getCell(`m_${k}`), data[`m_${k}`]);
   }
 
@@ -298,9 +305,13 @@ export async function exportCompany(rec) {
   sectionRow('Qualitative · own-document lens');
   if (rec.qual && rec.qual.params) {
     const covered = isCovered(rec);
-    ws.addRow(['Coverage', covered ? 'Covered — own transcript(s) read' : 'Not covered — no transcript harvested', '', '']).getCell(2).font = covered
-      ? { color: GREEN }
-      : { color: GREY };
+    const reextracted = isReextracted(rec);
+    const covText = !covered
+      ? 'Not covered — no transcript harvested'
+      : reextracted
+        ? 'Covered — own transcript(s) read'
+        : 'Covered — pending re-extract under the new schema';
+    ws.addRow(['Coverage', covText, '', '']).getCell(2).font = covered && reextracted ? { color: GREEN } : { color: GREY };
     for (const pk of [...new Set(QUAL_COLUMNS.map((c) => c.param))]) {
       const q = rec.qual.params[pk];
       if (!q) continue;
