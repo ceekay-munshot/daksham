@@ -135,6 +135,95 @@ const SECTION_FILL = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEE
 const GREEN = { argb: 'FF047857' };
 const RED = { argb: 'FFBE123C' };
 const GREY = { argb: 'FF94A3B8' };
+const AMBER = { argb: 'FFB45309' };
+
+// ── "super cool" grid styling ────────────────────────────────────────────────
+// Column groups → a distinct (but harmonious) dark header fill, so the sheet reads
+// in bands: identity · valuation · signals · derived · qualitative · moat.
+const GROUP_FILL = {
+  id: 'FF1E1B4B', fund: 'FF3730A3', signals: 'FF0F766E', derived: 'FF4338CA', qual: 'FF6D28D9', moat: 'FFB45309',
+};
+const ZEBRA = 'FFF8FAFC'; // faint stripe on alternating rows
+const HAIR = { style: 'hair', color: { argb: 'FFE2E8F0' } }; // inner grid
+const GSEP = { style: 'thin', color: { argb: 'FF94A3B8' } }; // between column groups
+const FRAME = { style: 'medium', color: { argb: 'FF334155' } }; // outer + header edges
+
+// Enum categories → semantic colour (a fixed vocabulary you can eyeball at a glance).
+const ENUM_GREEN = new Set(['Positive', 'Raised', 'Expanding', 'Growing', 'Gaining', 'Restocking']);
+const ENUM_RED = new Set(['Negative', 'Cut', 'Contracting', 'Declining', 'Losing', 'Channel-stuffing risk']);
+const ENUM_AMBER = new Set(['Maintained', 'Stable', 'Flat', 'Destocking']);
+const ENUM_GREY = new Set(['Not disclosed', 'Not covered', 'Pending', 'None', 'Covered · pending re-extract']);
+function colourEnum(cell, text) {
+  const t = String(text || '');
+  if (ENUM_GREEN.has(t)) cell.font = { bold: true, color: GREEN };
+  else if (ENUM_RED.has(t)) cell.font = { bold: true, color: RED };
+  else if (ENUM_AMBER.has(t)) cell.font = { color: AMBER };
+  else if (ENUM_GREY.has(t)) cell.font = { color: GREY };
+}
+
+// 1-based column index → Excel column letter (1→A, 27→AA), for CF refs.
+function colLetter(n) {
+  let s = '';
+  while (n > 0) {
+    const r = (n - 1) % 26;
+    s = String.fromCharCode(65 + r) + s;
+    n = Math.floor((n - 1) / 26);
+  }
+  return s;
+}
+
+// Post-pass over a built grid: per-group header fills, zebra striping, thin inner
+// borders with a medium outer frame + group separators, and in-cell data bars
+// ("sliders") on the columns worth eyeballing. `groups` is aligned to `columns`.
+function styleGridSheet(ws, columns, groups, dataBarKeys) {
+  const lastCol = columns.length;
+  const lastRow = ws.rowCount;
+  const groupStart = new Set();
+  let prev = null;
+  groups.forEach((g, i) => { if (g !== prev) groupStart.add(i + 1); prev = g; });
+
+  // Header band.
+  const hdr = ws.getRow(1);
+  hdr.height = 30;
+  columns.forEach((col, i) => {
+    const cell = hdr.getCell(i + 1);
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: GROUP_FILL[groups[i]] || GROUP_FILL.id } };
+    cell.font = { bold: true, size: 10, color: { argb: 'FFFFFFFF' } };
+    cell.alignment = { vertical: 'middle', horizontal: i === 0 ? 'left' : 'center', wrapText: true };
+  });
+
+  // Borders + zebra across the whole used range.
+  for (let rn = 1; rn <= lastRow; rn++) {
+    const r = ws.getRow(rn);
+    const head = rn === 1;
+    for (let c = 1; c <= lastCol; c++) {
+      const cell = r.getCell(c);
+      if (!head) {
+        if (rn % 2 === 1) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ZEBRA } };
+        if (c === 1) cell.font = { bold: true, color: { argb: 'FF0F172A' } };
+        cell.alignment = { vertical: 'middle', horizontal: c === 1 ? 'left' : 'center' };
+      }
+      cell.border = {
+        top: head ? FRAME : HAIR,
+        bottom: rn === lastRow || head ? FRAME : HAIR,
+        left: c === 1 ? FRAME : groupStart.has(c) ? GSEP : HAIR,
+        right: c === lastCol ? FRAME : HAIR,
+      };
+    }
+  }
+
+  // Data bars — the "sliders" for at-a-glance magnitude.
+  const BAR = { passed: 'FF6366F1', adtv: 'FF14B8A6', q_rev_high_pct: 'FF8B5CF6', q_margin_level_pct: 'FF8B5CF6', q_demand_anticipation: 'FF0EA5E9' };
+  for (const key of dataBarKeys) {
+    const idx = columns.findIndex((c) => c.key === key);
+    if (idx < 0 || lastRow < 2) continue;
+    const L = colLetter(idx + 1);
+    ws.addConditionalFormatting({
+      ref: `${L}2:${L}${lastRow}`,
+      rules: [{ type: 'dataBar', cfvo: [{ type: 'min' }, { type: 'max' }], color: { argb: BAR[key] || 'FF6366F1' }, gradient: true, showValue: true }],
+    });
+  }
+}
 
 function styleHeaderRow(row) {
   row.font = { bold: true, color: { argb: 'FFFFFFFF' } };
@@ -172,7 +261,9 @@ export async function exportGrid(records, scope) {
   const wb = new ExcelJS.Workbook();
   wb.creator = 'Daksham';
   wb.created = new Date();
-  const ws = wb.addWorksheet('Companies', { views: [{ state: 'frozen', ySplit: 1 }] });
+  const ws = wb.addWorksheet('Companies', {
+    views: [{ state: 'frozen', xSplit: 1, ySplit: 1, showGridLines: false }],
+  });
 
   const columns = [
     { header: 'Company', key: 'company', width: 28 },
@@ -203,7 +294,16 @@ export async function exportGrid(records, scope) {
     ...MOAT_COLS.map(([k, h]) => ({ header: h, key: `m_${k}`, width: 13, style: { numFmt: '0' } })),
   ];
   ws.columns = columns;
-  styleHeaderRow(ws.getRow(1));
+  // Map each column to its visual group (drives the banded header + separators).
+  const groupOf = (key) => {
+    if (['company', 'sector', 'industry'].includes(key)) return 'id';
+    if (key.startsWith('sig_')) return 'signals';
+    if (['salesCagr', 'gmDelta', 'adtv', 'passed'].includes(key)) return 'derived';
+    if (key === 'qual_cov' || key.startsWith('q_')) return 'qual';
+    if (key.startsWith('m_')) return 'moat';
+    return 'fund';
+  };
+  const groups = columns.map((c) => groupOf(c.key));
 
   for (const rec of records) {
     const p = rec.params || {};
@@ -237,10 +337,15 @@ export async function exportGrid(records, scope) {
     for (const [k] of MOAT_COLS) data[`m_${k}`] = moatOwnScore(rec, k);
     const r = ws.addRow(data);
     for (const k of CHECK_KEYS) colourVerdict(r.getCell(`sig_${k}`), data[`sig_${k}`]);
-    if (data.qual_cov !== 'Covered') r.getCell('qual_cov').font = { color: GREY };
+    colourEnum(r.getCell('qual_cov'), data.qual_cov);
+    for (const col of QUAL_COLUMNS) if (col.kind === 'enum') colourEnum(r.getCell(qkey(col)), data[qkey(col)]);
     for (const [k] of MOAT_COLS) colourMoat(r.getCell(`m_${k}`), data[`m_${k}`]);
   }
 
+  // Bands, borders, zebra, and in-cell data bars ("sliders"). autoFilter keeps the
+  // per-column dropdowns Amit wanted; the frozen top row + first column keep the
+  // company name and headers visible while scrolling/filtering the wide sheet.
+  styleGridSheet(ws, columns, groups, ['passed', 'adtv', 'q_rev_high_pct', 'q_margin_level_pct', 'q_demand_anticipation']);
   ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: columns.length } };
   download(await wb.xlsx.writeBuffer(), `daksham-${slugScope(scope)}-${today()}.xlsx`);
 }
@@ -277,7 +382,7 @@ export async function exportCompany(rec) {
 
   const hdr = ws.addRow(['Parameter', 'Value', 'Verdict', 'Note']);
   styleHeaderRow(hdr);
-  ws.views = [{ state: 'frozen', ySplit: hdr.number }];
+  ws.views = [{ state: 'frozen', ySplit: hdr.number, showGridLines: false }];
 
   const sectionRow = (title) => {
     const r = ws.addRow([title]);
