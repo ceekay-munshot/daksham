@@ -173,9 +173,9 @@ function colLetter(n) {
 }
 
 // Post-pass over a built grid: per-group header fills, zebra striping, thin inner
-// borders with a medium outer frame + group separators, and in-cell data bars
-// ("sliders") on the columns worth eyeballing. `groups` is aligned to `columns`.
-function styleGridSheet(ws, columns, groups, dataBarKeys) {
+// borders with a medium outer frame + group separators, and colour-scale gauges on
+// the magnitude columns worth eyeballing. `groups` is aligned to `columns`.
+function styleGridSheet(ws, columns, groups, scaleKeys) {
   const lastCol = columns.length;
   const lastRow = ws.rowCount;
   const groupStart = new Set();
@@ -212,15 +212,26 @@ function styleGridSheet(ws, columns, groups, dataBarKeys) {
     }
   }
 
-  // Data bars — the "sliders" for at-a-glance magnitude.
-  const BAR = { passed: 'FF6366F1', adtv: 'FF14B8A6', q_rev_high_pct: 'FF8B5CF6', q_margin_level_pct: 'FF8B5CF6', q_demand_anticipation: 'FF0EA5E9' };
-  for (const key of dataBarKeys) {
+  // Colour-scale gauges — a heat tint per magnitude column: [low→high] colours.
+  // colorScale (unlike dataBar) writes as a plain cfRule with NO x14 extLst, so
+  // ExcelJS 4.4.0 — the version the app pins — produces a file Excel opens without a
+  // repair prompt. Forward demand is 1=strong…5=weak, so its scale is REVERSED
+  // (green at the strong/low end, red at the weak/high end) to keep the read honest.
+  const SCALE = {
+    passed: ['FFEDE9FE', 'FF6366F1'],
+    adtv: ['FFCCFBF1', 'FF0D9488'],
+    q_rev_high_pct: ['FFEDE9FE', 'FF7C3AED'],
+    q_margin_level_pct: ['FFEDE9FE', 'FF7C3AED'],
+    q_demand_anticipation: ['FF047857', 'FFBE123C'],
+  };
+  for (const key of scaleKeys) {
     const idx = columns.findIndex((c) => c.key === key);
     if (idx < 0 || lastRow < 2) continue;
     const L = colLetter(idx + 1);
+    const [lo, hi] = SCALE[key] || ['FFEDE9FE', 'FF6366F1'];
     ws.addConditionalFormatting({
       ref: `${L}2:${L}${lastRow}`,
-      rules: [{ type: 'dataBar', cfvo: [{ type: 'min' }, { type: 'max' }], color: { argb: BAR[key] || 'FF6366F1' }, gradient: true, showValue: true }],
+      rules: [{ type: 'colorScale', cfvo: [{ type: 'min' }, { type: 'max' }], color: [{ argb: lo }, { argb: hi }] }],
     });
   }
 }
@@ -342,9 +353,9 @@ export async function exportGrid(records, scope) {
     for (const [k] of MOAT_COLS) colourMoat(r.getCell(`m_${k}`), data[`m_${k}`]);
   }
 
-  // Bands, borders, zebra, and in-cell data bars ("sliders"). autoFilter keeps the
-  // per-column dropdowns Amit wanted; the frozen top row + first column keep the
-  // company name and headers visible while scrolling/filtering the wide sheet.
+  // Bands, borders, zebra, and colour-scale gauges on the magnitude columns.
+  // autoFilter keeps the per-column dropdowns Amit wanted; the frozen top row +
+  // first column keep the company name and headers visible while scrolling/filtering.
   styleGridSheet(ws, columns, groups, ['passed', 'adtv', 'q_rev_high_pct', 'q_margin_level_pct', 'q_demand_anticipation']);
   ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: columns.length } };
   download(await wb.xlsx.writeBuffer(), `daksham-${slugScope(scope)}-${today()}.xlsx`);
