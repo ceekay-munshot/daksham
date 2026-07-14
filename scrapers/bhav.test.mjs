@@ -3,8 +3,10 @@ import assert from 'node:assert/strict';
 
 import {
   parseBhavcopy,
+  parseBseBhavcopy,
   isNumericSlug,
   buildTurnoverIndex,
+  buildBseTurnoverIndex,
   computeLiquidUniverse,
   round2,
 } from './lib/bhav.mjs';
@@ -106,6 +108,71 @@ test('computeLiquidUniverse: gate, full-window denominator, BSE exclusion', () =
     debug.sample_failed.map((s) => s.slug),
     ['SMALLCO', 'GHOST']
   );
+});
+
+// BSE bhavcopy: current UDiFF format (FinInstrmId / TtlTrfVal, ₹) and the legacy
+// SC_CODE / NET_TURNOV format. Value in ₹ -> Cr is /1e7.
+const BSE_UDIFF = [
+  'TradDt,Sgmt,FinInstrmId,ISIN,TckrSymb,SctySrs,ClsPric,TtlTradgVol,TtlTrfVal',
+  '2026-07-13,CM,500325,INE002A01018,RELIANCE,EQ,1400,1000,750000000', // 75 Cr
+  '2026-07-13,CM,590003,INE123A01011,SMALLBSE,B,50,100,30000000', // 3 Cr
+  '2026-07-13,CM,XYZ,INE999,BADCODE,EQ,1,1,1', // non-numeric scrip -> ignored
+].join('\n');
+
+const BSE_LEGACY = [
+  'SC_CODE,SC_NAME,SC_GROUP,SC_TYPE,CLOSE,NO_OF_SHRS,NET_TURNOV,ISIN_CODE',
+  '532540,TCS,A,Q,3800,1000,300000000,INE467B01029', // 30 Cr
+].join('\n');
+
+test('parseBseBhavcopy: UDiFF + legacy formats, numeric scrip only, ₹->Cr', () => {
+  assert.deepEqual(parseBseBhavcopy(BSE_UDIFF), [
+    { scrip: '500325', turnoverCr: 75 },
+    { scrip: '590003', turnoverCr: 3 },
+  ]);
+  assert.deepEqual(parseBseBhavcopy(BSE_LEGACY), [{ scrip: '532540', turnoverCr: 30 }]);
+});
+
+test('parseBseBhavcopy: throws on an unexpected header', () => {
+  assert.throws(() => parseBseBhavcopy('A,B,C\n1,2,3'), /unexpected BSE bhavcopy header/);
+});
+
+test('buildBseTurnoverIndex sums by scrip across days', () => {
+  const idx = buildBseTurnoverIndex([parseBseBhavcopy(BSE_UDIFF), parseBseBhavcopy(BSE_UDIFF)]);
+  assert.equal(idx.get('500325'), 150); // 75 + 75
+  assert.equal(idx.get('590003'), 6); // 3 + 3
+});
+
+test('computeLiquidUniverse: BSE-only names gated when a BSE index is supplied', () => {
+  const turnoverIndex = buildTurnoverIndex([parseBhavcopy(DAY1)]);
+  const bseTurnoverIndex = buildBseTurnoverIndex([parseBseBhavcopy(BSE_UDIFF), parseBseBhavcopy(BSE_UDIFF)]);
+  const daysUsed = ['2026-07-13', '2026-07-12']; // 2-day window
+  const universe = [
+    { name: 'Reliance NSE', slug: 'RELIANCE' }, // NSE 500 Cr/day -> pass
+    { name: 'Reliance BSE', slug: '500325' }, // BSE 150/2 = 75 -> pass (bse)
+    { name: 'Small BSE', slug: '590003' }, // BSE 6/2 = 3 -> fail (< 4)
+    { name: 'No BSE data', slug: '999999' }, // absent -> 0 -> fail
+  ];
+
+  const { liquid, debug } = computeLiquidUniverse({ universe, turnoverIndex, bseTurnoverIndex, daysUsed, threshold: 4 });
+
+  assert.deepEqual(liquid.map((r) => [r.slug, r.liquidity_source]), [
+    ['RELIANCE', 'nse'],
+    ['500325', 'bse'],
+  ]);
+  assert.equal(debug.bse_included, true);
+  assert.equal(debug.bse_passed, 1);
+  assert.equal(debug.bse_failed, 2); // 590003 + 999999
+  assert.equal(debug.bse_only_excluded, 0); // nothing excluded when BSE data is present
+});
+
+test('computeLiquidUniverse: without a BSE index, BSE-only names stay excluded', () => {
+  const turnoverIndex = buildTurnoverIndex([parseBhavcopy(DAY1)]);
+  const universe = [{ slug: 'RELIANCE' }, { slug: '500325' }];
+  const { liquid, debug } = computeLiquidUniverse({ universe, turnoverIndex, daysUsed: ['2026-07-13'], threshold: 4 });
+  assert.deepEqual(liquid.map((r) => r.slug), ['RELIANCE']);
+  assert.equal(debug.bse_included, false);
+  assert.equal(debug.bse_only_excluded, 1);
+  assert.deepEqual(debug.bse_only_slugs, ['500325']);
 });
 
 test('round2 helper', () => {
