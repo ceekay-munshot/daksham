@@ -170,6 +170,11 @@ test('shapeVerdicts: guarded revenue backfill from value (metric-aware, period-s
   assert.equal(rev('INR550-600 cr EBITDA FY26').rev_low_pct, null);
   // Period tokens are stripped so "…in FY27" is not read as 27%.
   assert.equal(rev('revenue growth 15% in FY27').rev_high_pct, 15);
+  // Absolute ₹ amounts alongside a % must NOT be read as a growth %.
+  assert.deepEqual(
+    [rev('revenue growth of 15-20% to INR 1,000 crore').rev_low_pct, rev('revenue growth of 15-20% to INR 1,000 crore').rev_high_pct],
+    [15, 20]
+  );
   // Ambiguous "CAGR" with no revenue/sales word → left blank (not guessed).
   assert.equal(rev('16.5% CAGR vs 15% guidance').rev_high_pct, null);
 });
