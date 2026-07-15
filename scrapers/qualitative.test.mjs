@@ -79,9 +79,12 @@ test('buildInput: newest-first, tagged, deduped, capped; empty when no usable do
   assert.match(r.text, /\[Investor PPT 2026-01\]/);
   assert.ok(r.charsIn > 0 && r.charsIn <= 24000);
 
-  // Identical text across both quarters must be deduped (no doubled sentences).
-  const occurrences = r.text.split('order book grew 20%').length - 1;
-  assert.equal(occurrences, 1);
+  // Q&A / body sentences repeated across quarters are still deduped on content...
+  assert.equal(r.text.split('commission the new plant').length - 1, 1);
+  // ...but each of the newest two concalls keeps its OWN opening remarks (keyed by
+  // period, not content), so a shared boilerplate intro can't collapse the prior
+  // quarter's guidance into the latest. Both concall tags are present.
+  assert.equal(r.text.split('[Concall ').length - 1, 2);
 
   assert.deepEqual(buildInput([{ type: 'transcript', period: '2026-02', text: '   ' }]), {
     text: '', sourceQuarter: '', usedPeriods: [], charsIn: 0, docsUsed: 0,
@@ -124,6 +127,50 @@ test('buildInput: reserves the prior concall guidance against a budget-eating la
   assert.match(r.text, /growth of about 8%/);
   assert.match(r.text, /growth of about 15%/);
   assert.ok(r.usedPeriods.includes('2026-02'), 'prior quarter must be present');
+});
+
+test('buildInput: a shared boilerplate intro does not collapse the prior opening', () => {
+  // Consecutive concalls routinely open with an identical >140-char moderator/
+  // safe-harbour intro, then diverge on guidance. A content dedupe keyed on the
+  // first 140 chars would treat the prior opening as a duplicate and drop it — so
+  // openings must dedupe on period, keeping BOTH quarters' guidance.
+  const intro =
+    'Ladies and gentlemen, good day and welcome to the earnings conference call of Example Industries Limited, ' +
+    'hosted by the management team; as a reminder all participant lines are in the listen-only mode. Management:';
+  const newest = `${intro} we now expect revenue growth of about 18% next year as demand accelerates. ` +
+    'Ladies and gentlemen, we will now begin the question-and-answer session.';
+  const prior = `${intro} we expect revenue growth of about 9% next year as demand stays steady. ` +
+    'Ladies and gentlemen, we will now begin the question-and-answer session.';
+
+  const r = buildInput(
+    [
+      { type: 'transcript', period: '2026-05', text: newest },
+      { type: 'transcript', period: '2026-02', text: prior },
+    ],
+    { maxChars: 24000 }
+  );
+
+  assert.match(r.text, /growth of about 18%/); // newest guidance
+  assert.match(r.text, /growth of about 9%/); // prior guidance survives despite shared intro
+  assert.ok(r.usedPeriods.includes('2026-02'), 'prior quarter must be present');
+});
+
+test('buildInput: assembled text never exceeds the char cap (tags/joiners budgeted)', () => {
+  // Many docs with real tags + joiners must not push the output past maxChars — the
+  // reserved prior guidance is emitted last and would otherwise be truncated off.
+  const mk = (n) =>
+    [`Management: welcome to the ${n} call.`, `We expect revenue growth of about ${n}% next year.`,
+     'Ladies and gentlemen, we will now begin the question-and-answer session.',
+     Array.from({ length: 80 }, (_, i) => `On demand, segment ${i} revenue outlook stays strong.`).join('\n')].join('\n');
+  const docs = [
+    { type: 'transcript', period: '2026-05', text: mk(20) },
+    { type: 'transcript', period: '2026-02', text: mk(15) },
+    { type: 'transcript', period: '2025-11', text: mk(12) },
+    { type: 'ppt', period: '2026-05', text: 'Investor deck: capacity expansion and market share gains continue.' },
+  ];
+  const r = buildInput(docs, { maxChars: 5000 });
+  assert.ok(r.text.length <= 5000, `text length ${r.text.length} must be <= 5000`);
+  assert.equal(r.charsIn, r.text.length);
 });
 
 test('buildInput: respects the char cap', () => {
