@@ -152,7 +152,7 @@ const FRAME = { style: 'medium', color: { argb: 'FF334155' } }; // outer + heade
 const ENUM_GREEN = new Set(['Positive', 'Raised', 'Expanding', 'Growing', 'Gaining', 'Restocking']);
 const ENUM_RED = new Set(['Negative', 'Cut', 'Contracting', 'Declining', 'Losing', 'Channel-stuffing risk']);
 const ENUM_AMBER = new Set(['Maintained', 'Stable', 'Flat', 'Destocking']);
-const ENUM_GREY = new Set(['Not disclosed', 'Not covered', 'Pending', 'None', 'Covered · pending re-extract']);
+const ENUM_GREY = new Set(['Not disclosed', 'Not applicable', 'Not covered', 'Pending', 'None', 'Covered · pending re-extract']);
 function colourEnum(cell, text) {
   const t = String(text || '');
   if (ENUM_GREEN.has(t)) cell.font = { bold: true, color: GREEN };

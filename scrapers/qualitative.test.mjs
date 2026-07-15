@@ -130,6 +130,23 @@ test('shapeVerdicts: out-of-enum / missing fields degrade to NA, confidence clam
   assert.equal(Object.keys(v).length, PARAMS.length);
 });
 
+test('shapeVerdicts: on NA, keeps a no-signal category but never a positive one', () => {
+  const v = shapeVerdicts(
+    {
+      // NA order book, model says "Not applicable" (no order-book business) → kept
+      order_book: { verdict: 'NA', value: '', note: 'consumer co', confidence: 'high', ob_trend: 'Not applicable' },
+      // NA but a contradictory positive category → must NOT survive
+      market_share: { verdict: 'NA', value: '', note: 'x', confidence: 'low', ms_trend: 'Gaining' },
+      // NA capital, model says "None" (no raise) → kept
+      capital_raised: { verdict: 'NA', value: '', note: 'x', confidence: 'low', cap_purpose: 'None' },
+    },
+    { sourceQuarter: '2026-02' }
+  );
+  assert.equal(v.order_book.fields.ob_trend, 'Not applicable'); // no-signal category preserved
+  assert.equal(v.market_share.fields.ms_trend, 'Not disclosed'); // positive category dropped on NA
+  assert.equal(v.capital_raised.fields.cap_purpose, 'None'); // "None" preserved
+});
+
 test('naAllParams: every param NA with native output_type', () => {
   const na = naAllParams('No transcripts/PPT harvested');
   assert.equal(Object.keys(na).length, PARAMS.length);
