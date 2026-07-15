@@ -88,6 +88,44 @@ test('buildInput: newest-first, tagged, deduped, capped; empty when no usable do
   });
 });
 
+test('buildInput: reserves the prior concall guidance against a budget-eating latest call', () => {
+  // A latest call whose Q&A alone overflows the budget — naive newest-first packing
+  // would fill it entirely and starve the previous quarter (making vs-prior blank).
+  const bigQA = Array.from(
+    { length: 200 },
+    (_, i) => `On demand, segment ${i} revenue and margin outlook stays strong with a healthy order book.`
+  ).join('\n');
+  const newest = [
+    'Management: welcome to the Q4 earnings call.',
+    'We expect revenue growth of about 15% next year.',
+    'Ladies and gentlemen, we will now begin the question-and-answer session.',
+    bigQA,
+  ].join('\n');
+  // The prior quarter guided a DIFFERENT number, stated only in its opening remarks.
+  const prior = [
+    'Management: welcome to the Q3 earnings call.',
+    'We expect revenue growth of about 8% next year as demand normalises.',
+    'Ladies and gentlemen, we will now begin the question-and-answer session.',
+    'On capacity, the new southern line ramps up over the year.',
+  ].join('\n');
+
+  const r = buildInput(
+    [
+      { type: 'transcript', period: '2026-05', text: newest },
+      { type: 'transcript', period: '2026-02', text: prior },
+    ],
+    { maxChars: 6000 }
+  );
+
+  // Both quarters make it in, and the prior quarter's guidance number survives so the
+  // model can actually compare them for rev_vs_prior.
+  assert.match(r.text, /\[Concall 2026-05\]/);
+  assert.match(r.text, /\[Concall 2026-02\]/);
+  assert.match(r.text, /growth of about 8%/);
+  assert.match(r.text, /growth of about 15%/);
+  assert.ok(r.usedPeriods.includes('2026-02'), 'prior quarter must be present');
+});
+
 test('buildInput: respects the char cap', () => {
   const big = 'We expect strong demand and margin expansion. '.repeat(5000);
   const r = buildInput([{ type: 'transcript', period: '2026-02', text: big }], { maxChars: 3000 });
