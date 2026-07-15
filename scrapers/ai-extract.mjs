@@ -40,6 +40,14 @@ const COMPANIES_PATH = path.join(OUT_DIR, 'daksham-companies.json');
 const UNIVERSE_PATH = path.join(OUT_DIR, 'liquid-universe.json');
 const OUT_PATH = path.join(OUT_DIR, 'daksham-qualitative.json');
 
+// Bump when the extraction LOGIC changes (prompt / packing / schema) so scheduled
+// runs re-extract already-done companies gradually, in bounded batches, instead of
+// forcing all ~1000 at once. Stamped into meta.pack_v; a run refreshes up to
+// BACKFILL_BATCH companies whose stamp is older, so the backfill walks the whole
+// list over several days and then no-ops. (v2 = prior-concall packing + vs-prior
+// comparison prompt.)
+const EXTRACT_LOGIC_VERSION = 2;
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const truthy = (v) => ['1', 'true', 'yes', 'on'].includes(String(v || '').toLowerCase());
 const readJSON = (p, fallback) => (existsSync(p) ? JSON.parse(readFileSync(p, 'utf8')) : fallback);
@@ -56,6 +64,8 @@ function readConfig() {
     stopAfter: env.STOP_AFTER ? Math.max(1, parseInt(env.STOP_AFTER, 10)) : 4, // consecutive failures → halt (outage)
     naRetryCap: env.NA_RETRY_CAP != null ? Math.max(0, parseInt(env.NA_RETRY_CAP, 10) || 0) : 2, // bounded re-reads of all-NA-with-docs
     force: truthy(env.FORCE),
+    backfill: truthy(env.BACKFILL), // re-extract stale-logic companies, bounded per run
+    backfillBatch: env.BACKFILL_BATCH ? Math.max(1, parseInt(env.BACKFILL_BATCH, 10) || 0) : 50,
   };
 }
 
@@ -226,6 +236,7 @@ async function main() {
 
   const stats = { done: 0, withDocs: 0, noDocs: 0, failed: 0, transient: 0, charsIn: 0, estTokens: 0, actualTokens: 0, actualSeen: 0 };
   let rr = 0; // round-robin cursor
+  let backfilled = 0; // stale-logic companies refreshed this run (bounded by cfg.backfillBatch)
   const t0 = Date.now();
 
   log(`Companies with docs: ${order.length} | this run: [${cfg.startAt}, ${cfg.startAt + slice.length}) = ${slice.length}\n`);
@@ -239,12 +250,18 @@ async function main() {
     const newest = latestTranscriptPeriod(manifest, slug);
     const stale = done && isStaleSource(done.meta && done.meta.source, newest);
     const reread = !!done && shouldReextract(done, cfg.naRetryCap);
-    if (!cfg.force && done && !reread && !stale) {
+    // Gradual logic-version backfill: an already-done company extracted under an
+    // older logic version gets refreshed, but only up to BACKFILL_BATCH per run, so
+    // a prompt/packing change rolls out over days instead of one big forced run.
+    const staleLogic = cfg.backfill && !!done && (((done.meta && done.meta.pack_v) || 0) < EXTRACT_LOGIC_VERSION);
+    const doBackfill = staleLogic && backfilled < cfg.backfillBatch;
+    if (!cfg.force && done && !reread && !stale && !doBackfill) {
       log(`[${idx}] ${slug} — already done, skip (FORCE=1 to redo)`);
       continue;
     }
     if (stale) log(`[${idx}] ${slug} — newer transcript ${newest} > ${done.meta.source} → refreshing`);
     else if (reread) log(`[${idx}] ${slug} — all-NA with docs → retry ${((done.meta && done.meta.na_retries) || 0) + 1}/${cfg.naRetryCap}`);
+    else if (doBackfill) { backfilled += 1; log(`[${idx}] ${slug} — logic v${(done.meta && done.meta.pack_v) || 0}→v${EXTRACT_LOGIC_VERSION} backfill ${backfilled}/${cfg.backfillBatch}`); }
 
     const docs = gatherDocs(manifest, slug);
     const { text, sourceQuarter, docsUsed, charsIn } = buildInput(docs, { maxChars: cfg.maxInputChars });
@@ -259,7 +276,7 @@ async function main() {
         ocrPending = raw.some((e) => e.ocr_needed);
         note = ocrPending ? 'Concall/PPT is a scanned image — OCR pending' : 'Harvested documents had no readable text';
       }
-      out.companies[slug] = { name, params: naAllParams(note), meta: { docs_used: 0, chars_in: 0, ...(ocrPending ? { ocr_pending: true } : {}) } };
+      out.companies[slug] = { name, params: naAllParams(note), meta: { docs_used: 0, chars_in: 0, pack_v: EXTRACT_LOGIC_VERSION, ...(ocrPending ? { ocr_pending: true } : {}) } };
       stats.noDocs += 1;
       stats.done += 1;
       log(`[${idx}] ${slug} (${name}) — ${ocrPending ? 'scanned only (OCR pending)' : 'no usable docs'} → all NA`);
@@ -306,7 +323,7 @@ async function main() {
 
     if (outcome) {
       const allNA = Object.values(outcome.params).every((p) => p.verdict === 'NA');
-      const meta = { docs_used: docsUsed, chars_in: charsIn, est_tokens: est, source: sourceQuarter, provider: usedProv.provider };
+      const meta = { docs_used: docsUsed, chars_in: charsIn, est_tokens: est, source: sourceQuarter, provider: usedProv.provider, pack_v: EXTRACT_LOGIC_VERSION };
       if (allNA) meta.na_retries = ((done && done.meta && done.meta.na_retries) || 0) + 1; // bound re-reads of a silent concall
       out.companies[slug] = { name, params: outcome.params, meta };
       stats.withDocs += 1;
