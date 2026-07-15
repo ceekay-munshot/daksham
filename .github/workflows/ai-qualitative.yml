@@ -7,7 +7,10 @@ name: AI qualitative extraction
 # 100% free: round-robins across EVERY key set (Gemini flash-lite + Groq), failing
 # over when one's rate-limited — two free quotas per run. Crash-resumable: it skips
 # companies already done, so it just continues. A schedule auto-resumes it until all
-# 858 are extracted, then runs no-op (nothing to commit).
+# are extracted, then runs no-op (nothing to commit). After a prompt/packing change
+# (EXTRACT_LOGIC_VERSION bump), scheduled runs also backfill already-done companies a
+# few dozen at a time, so the change rolls out gradually over days without one big
+# forced run.
 on:
   workflow_dispatch:
     inputs:
@@ -24,6 +27,15 @@ on:
         type: boolean
         required: false
         default: false
+      backfill:
+        description: "Gradually re-extract companies on an OLD logic version, up to backfill_batch per run (schedule does this automatically)."
+        type: boolean
+        required: false
+        default: false
+      backfill_batch:
+        description: "Max stale-logic companies to refresh per run (keeps each run light; the whole list fills over several days)."
+        required: false
+        default: "50"
       model:
         description: "Model id (only with a single provider). Blank = each provider's default."
         required: false
@@ -93,6 +105,10 @@ jobs:
           RPM: ${{ inputs.rpm || '10' }}
           # Manual force re-extract (schema change); blank on scheduled runs = incremental.
           FORCE: ${{ inputs.force && '1' || '' }}
+          # Scheduled runs ALWAYS backfill stale-logic companies (a few dozen per run,
+          # so a prompt/packing change rolls out over days). Manual runs can opt in.
+          BACKFILL: ${{ (github.event_name == 'schedule' || inputs.backfill) && '1' || '' }}
+          BACKFILL_BATCH: ${{ inputs.backfill_batch || '50' }}
         run: node scrapers/ai-extract.mjs
 
       - name: Commit qualitative data
