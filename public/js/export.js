@@ -31,11 +31,11 @@ const SIGNAL_HEADERS = {
 // ENUM you can multi-select — never a bare "was it mentioned" flag. `demand` is the
 // standalone 1–5 scale (the param's verdict, not a sub-field).
 const QUAL_COLUMNS = [
-  { param: 'guidance_revenue', field: 'rev_low_pct', header: 'Rev guid – Low %', kind: 'num' },
-  { param: 'guidance_revenue', field: 'rev_high_pct', header: 'Rev guid – High %', kind: 'num' },
+  { param: 'guidance_revenue', field: 'rev_low_pct', header: 'Rev guid – Low %', kind: 'num', pct: 150 },
+  { param: 'guidance_revenue', field: 'rev_high_pct', header: 'Rev guid – High %', kind: 'num', pct: 150 },
   { param: 'guidance_revenue', field: 'rev_vs_prior', header: 'Rev guid vs prior', kind: 'enum' },
   { param: 'guidance_margin', field: 'margin_direction', header: 'Margin – Direction', kind: 'enum' },
-  { param: 'guidance_margin', field: 'margin_level_pct', header: 'Margin – Level %', kind: 'num' },
+  { param: 'guidance_margin', field: 'margin_level_pct', header: 'Margin – Level %', kind: 'num', pct: 100 },
   { param: 'order_book', field: 'ob_trend', header: 'Order book trend', kind: 'enum' },
   { param: 'order_book', field: 'ob_size_cr', header: 'Order book (₹ Cr)', kind: 'num' },
   { param: 'order_book', field: 'ob_book_to_bill', header: 'Book-to-bill (x)', kind: 'num' },
@@ -45,8 +45,22 @@ const QUAL_COLUMNS = [
   { param: 'demand_anticipation', field: null, header: 'Forward demand (1=strong…5=weak)', kind: 'demand' },
   { param: 'capital_raised', field: 'cap_amount_cr', header: 'Capital raised (₹ Cr)', kind: 'num' },
   { param: 'capital_raised', field: 'cap_purpose', header: 'Capital purpose', kind: 'enum' },
-  { param: 'capital_raised', field: 'cap_dilution_pct', header: 'Dilution %', kind: 'num' },
+  { param: 'capital_raised', field: 'cap_dilution_pct', header: 'Dilution %', kind: 'num', pct: 100 },
 ];
+
+// Display safety net mirroring the extractor's sanePct: a %-column must never show an
+// absolute ₹ figure a provider dropped into it ("₹3,500 cr" → "3500%"). Blank such a
+// value so the column stays trustworthy even for data extracted before the fix landed;
+// the ₹ target is still visible in the tooltip/value. (Source of truth: scrapers/lib.)
+const CURRENCY_UNIT = 'cr\\b|crores?|mn\\b|million|bn\\b|billion|lakhs?|lacs?';
+function sanePct(n, max, ...texts) {
+  if (typeof n !== 'number' || !isFinite(n)) return null;
+  if (n > max) return null;
+  const body = texts.map((t) => String(t || '')).join(' ').replace(/,/g, '');
+  const lit = String(n).replace('.', '\\.');
+  if (new RegExp('(?:^|[^\\d.])' + lit + '\\s*(?:' + CURRENCY_UNIT + ')', 'i').test(body)) return null;
+  return n;
+}
 
 // Coverage flag (the client's NA-disambiguation): "Covered" = we read ≥1 of this
 // company's own transcripts; "Not covered" = none harvested, so every blank qual
@@ -73,7 +87,9 @@ function qualCell(rec, col) {
   }
   const f = p && p.fields ? p.fields[col.field] : undefined;
   if (col.kind === 'num') {
-    return { number: !covered || pending || typeof f !== 'number' ? null : f };
+    let n = !covered || pending || typeof f !== 'number' ? null : f;
+    if (n != null && col.pct != null) n = sanePct(n, col.pct, p.value, p.note); // blank a ₹-figure mis-placed in a %-column
+    return { number: n };
   }
   // enum
   if (!covered) return { text: 'Not covered' };

@@ -264,6 +264,25 @@ test('shapeVerdicts: guarded revenue backfill from value (metric-aware, period-s
   assert.equal(rev('16.5% CAGR vs 15% guidance').rev_high_pct, null);
 });
 
+test('shapeVerdicts: an absolute ₹ target dropped into a growth-% subfield is rejected', () => {
+  const rev = (value, lo, hi) =>
+    shapeVerdicts(
+      { guidance_revenue: { verdict: 'DISCLOSED', value, note: value, confidence: 'high', rev_low_pct: lo, rev_high_pct: hi, rev_vs_prior: 'Not disclosed' } },
+      { sourceQuarter: '2026-05' }
+    ).guidance_revenue.fields;
+
+  // Rupee-crore revenue TARGETs mis-placed in the % columns → blanked, not "3500%".
+  assert.deepEqual([rev('INR3,400-3,500 cr FY27', '3400', '3500').rev_low_pct, rev('INR3,400-3,500 cr FY27', '3400', '3500').rev_high_pct], [null, null]);
+  assert.equal(rev('INR11,200 cr sales FY27', '', '11200').rev_high_pct, null);
+  assert.equal(rev('Top line to cross INR 6,000 cr in FY27', '', '6000').rev_high_pct, null);
+  // Above the sane ceiling even without a unit adjacency (e.g. 565 cr ±5% → 593.25).
+  assert.equal(rev('FY27 revenue guidance 565 crore', '', '593.25').rev_high_pct, null);
+  // Genuine high-growth percentages are KEPT (must not over-clamp real data).
+  assert.equal(rev('103% YoY growth for FY26', '', '103').rev_high_pct, 103);
+  assert.equal(rev('double revenue 550 to 1200 Cr by FY29', '', '118').rev_high_pct, 118);
+  assert.deepEqual([rev('revenue growth of 15-20% next year', '15', '20').rev_low_pct, rev('revenue growth of 15-20% next year', '15', '20').rev_high_pct], [15, 20]);
+});
+
 test('naAllParams: every param NA with native output_type', () => {
   const na = naAllParams('No transcripts/PPT harvested');
   assert.equal(Object.keys(na).length, PARAMS.length);
