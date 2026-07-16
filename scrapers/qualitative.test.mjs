@@ -264,6 +264,31 @@ test('shapeVerdicts: guarded revenue backfill from value (metric-aware, period-s
   assert.equal(rev('16.5% CAGR vs 15% guidance').rev_high_pct, null);
 });
 
+test('shapeVerdicts: revenue guidance splits into a growth-% pair and a ₹-crore target pair', () => {
+  const rev = (value, over = {}) =>
+    shapeVerdicts(
+      { guidance_revenue: { verdict: 'DISCLOSED', value, note: `FY27 revenue guidance: ${value}`, confidence: 'high', rev_low_pct: '', rev_high_pct: '', rev_target_low_cr: '', rev_target_high_cr: '', rev_vs_prior: 'Not disclosed', ...over } },
+      { sourceQuarter: '2026-05' }
+    ).guidance_revenue.fields;
+
+  // Absolute ₹ target → the CR pair (backfilled from value), % pair stays blank.
+  let f = rev('INR3,400-3,500 cr FY27');
+  assert.deepEqual([f.rev_target_low_cr, f.rev_target_high_cr], [3400, 3500]);
+  assert.deepEqual([f.rev_low_pct, f.rev_high_pct], [null, null]);
+  // mn/bn normalise to crore.
+  assert.equal(rev('revenue of INR 26,000 mn for FY27').rev_target_high_cr, 2600);
+  // A % outlook → the % pair, CR pair blank.
+  f = rev('revenue growth of 15-20% next year');
+  assert.deepEqual([f.rev_low_pct, f.rev_high_pct], [15, 20]);
+  assert.deepEqual([f.rev_target_low_cr, f.rev_target_high_cr], [null, null]);
+  // Both shapes given → both pairs fill.
+  f = rev('15-20% growth to INR 1,000 crore in revenue');
+  assert.deepEqual([f.rev_low_pct, f.rev_high_pct], [15, 20]);
+  assert.equal(f.rev_target_high_cr, 1000);
+  // A model that returns the CR fields directly is honoured (no unit in value needed).
+  assert.equal(rev('FY27 target', { rev_target_high_cr: '750' }).rev_target_high_cr, 750);
+});
+
 test('shapeVerdicts: an absolute ₹ target dropped into a growth-% subfield is rejected', () => {
   const rev = (value, lo, hi) =>
     shapeVerdicts(

@@ -31,8 +31,10 @@ const SIGNAL_HEADERS = {
 // ENUM you can multi-select — never a bare "was it mentioned" flag. `demand` is the
 // standalone 1–5 scale (the param's verdict, not a sub-field).
 const QUAL_COLUMNS = [
-  { param: 'guidance_revenue', field: 'rev_low_pct', header: 'Rev guid – Low %', kind: 'num', pct: 150 },
-  { param: 'guidance_revenue', field: 'rev_high_pct', header: 'Rev guid – High %', kind: 'num', pct: 150 },
+  { param: 'guidance_revenue', field: 'rev_low_pct', header: 'Rev growth – Low %', kind: 'num', pct: 150 },
+  { param: 'guidance_revenue', field: 'rev_high_pct', header: 'Rev growth – High %', kind: 'num', pct: 150 },
+  { param: 'guidance_revenue', field: 'rev_target_low_cr', header: 'Rev target – Low (₹ Cr)', kind: 'num', cr: true },
+  { param: 'guidance_revenue', field: 'rev_target_high_cr', header: 'Rev target – High (₹ Cr)', kind: 'num', cr: true },
   { param: 'guidance_revenue', field: 'rev_vs_prior', header: 'Rev guid vs prior', kind: 'enum' },
   { param: 'guidance_margin', field: 'margin_direction', header: 'Margin – Direction', kind: 'enum' },
   { param: 'guidance_margin', field: 'margin_level_pct', header: 'Margin – Level %', kind: 'num', pct: 100 },
@@ -62,6 +64,25 @@ function sanePct(n, max, ...texts) {
   return n;
 }
 
+// Pull an absolute ₹-crore figure out of a value/note string (mirror of the extractor's
+// pickCr) so the Rev-target columns populate immediately for data extracted before the
+// split landed — e.g. "₹3,400-3,500 cr FY27" → low 3400 / high 3500. mn/bn normalised.
+const CR_PER = { cr: 1, crore: 1, crores: 1, mn: 0.1, million: 0.1, bn: 100, billion: 100, lakh: 0.01, lakhs: 0.01, lac: 0.01, lacs: 0.01 };
+function pickCr(text, bound) {
+  const s = String(text || '').replace(/\bFY\s?\d{2,4}(?:\s?[-–]\s?\d{2,4})?\b/gi, ' ').replace(/,/g, '');
+  const nums = [];
+  const re = /(\d+(?:\.\d+)?)(?:\s*[-–]\s*(\d+(?:\.\d+)?))?\s*(cr\b|crores?|mn\b|million|bn\b|billion|lakhs?|lacs?)/gi;
+  let m;
+  while ((m = re.exec(s))) {
+    const mult = CR_PER[m[3].toLowerCase()] || 1;
+    nums.push(Number(m[1]) * mult);
+    if (m[2] != null) nums.push(Number(m[2]) * mult);
+  }
+  const fin = nums.filter((n) => Number.isFinite(n));
+  if (!fin.length) return null;
+  return bound === 'low' ? Math.min(...fin) : Math.max(...fin);
+}
+
 // Coverage flag (the client's NA-disambiguation): "Covered" = we read ≥1 of this
 // company's own transcripts; "Not covered" = none harvested, so every blank qual
 // cell means "we haven't looked", not "management didn't disclose". A blank enum on
@@ -88,6 +109,12 @@ function qualCell(rec, col) {
   const f = p && p.fields ? p.fields[col.field] : undefined;
   if (col.kind === 'num') {
     let n = !covered || pending || typeof f !== 'number' ? null : f;
+    // Rev-target ₹-cr columns: for rows extracted BEFORE the split (the field didn't
+    // exist yet), derive the figure from the value/note so the column isn't empty until
+    // re-extraction. A present-but-null field (post-split, no target given) is trusted.
+    if (n == null && col.cr && covered && !pending && p && p.fields && !(col.field in p.fields)) {
+      n = pickCr(`${p.value || ''} ${p.note || ''}`, col.field.includes('_low_') ? 'low' : 'high');
+    }
     if (n != null && col.pct != null) n = sanePct(n, col.pct, p.value, p.note); // blank a ₹-figure mis-placed in a %-column
     return { number: n };
   }
@@ -101,6 +128,7 @@ function qualCell(rec, col) {
 const qkey = (col) => `q_${col.field || col.param}`;
 const QUAL_FMT = {
   rev_low_pct: '0.0', rev_high_pct: '0.0', margin_level_pct: '0.0', cap_dilution_pct: '0.0',
+  rev_target_low_cr: '#,##0', rev_target_high_cr: '#,##0',
   ob_size_cr: '#,##0', cap_amount_cr: '#,##0', ob_book_to_bill: '0.00',
 };
 
@@ -359,7 +387,9 @@ export async function exportGrid(records, scope) {
     data.qual_cov = !isCovered(rec) ? 'Not covered' : isReextracted(rec) ? 'Covered' : 'Covered · pending re-extract';
     for (const col of QUAL_COLUMNS) {
       const cell = qualCell(rec, col);
-      data[qkey(col)] = 'number' in cell ? cell.number : cell.text;
+      // Numeric/demand cells with no value show an en-dash ("–") rather than an empty
+      // cell, so "management said nothing" reads as a deliberate nil, not missing data.
+      data[qkey(col)] = 'number' in cell ? (cell.number == null ? '–' : cell.number) : cell.text;
     }
     for (const [k] of MOAT_COLS) data[`m_${k}`] = moatOwnScore(rec, k);
     const r = ws.addRow(data);
@@ -452,7 +482,7 @@ export async function exportCompany(rec) {
       // Structured sub-fields, indented — the deep file mirrors the master columns.
       for (const col of QUAL_COLUMNS.filter((c) => c.param === pk && c.field)) {
         const cell = qualCell(rec, col);
-        const val = 'number' in cell ? (cell.number == null ? '' : cell.number) : cell.text;
+        const val = 'number' in cell ? (cell.number == null ? '–' : cell.number) : cell.text;
         ws.addRow([`    • ${col.header}`, val, '', '']).getCell(1).font = { color: GREY };
       }
     }
