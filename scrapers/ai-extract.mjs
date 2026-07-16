@@ -47,8 +47,9 @@ const OUT_PATH = path.join(OUT_DIR, 'daksham-qualitative.json');
 // list over several days and then no-ops. (v2 = prior-concall packing + vs-prior
 // comparison prompt; v3 = DISCLOSED counts still-active forward guidance while
 // excluding reported actuals / AUM, keeping vs_prior anchored to the newest call;
-// v4 = reject an absolute ₹-crore figure mis-placed in a growth-% subfield.)
-const EXTRACT_LOGIC_VERSION = 4;
+// v4 = reject an absolute ₹-crore figure mis-placed in a growth-% subfield;
+// v5 = split revenue guidance into a growth-% pair and a ₹-crore target pair.)
+const EXTRACT_LOGIC_VERSION = 5;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const truthy = (v) => ['1', 'true', 'yes', 'on'].includes(String(v || '').toLowerCase());
