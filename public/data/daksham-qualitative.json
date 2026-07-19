@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-19T08:14:10.730Z",
+  "generated_at": "2026-07-19T12:58:13.291Z",
   "provider": "gemini, groq, cerebras, mistral",
   "model": "gemini-2.5-flash-lite, llama-3.3-70b-versatile, llama3.1-8b, mistral-small-latest",
   "input_max_chars": 24000,
@@ -1751,11 +1751,11 @@
         "guidance_margin": {
           "key": "guidance_margin",
           "label": "EBITDA-margin guidance (implied)",
-          "value": "stable",
+          "value": "35%",
           "verdict": "DISCLOSED",
           "output_type": "implied",
-          "note": "Management implies that EBITDA margin will remain stable due to improved technology and process R&D.",
-          "confidence": "medium",
+          "note": "Management mentions maintaining EBITDA margin around 35%.",
+          "confidence": "high",
           "source": "2026-01",
           "fields": {
             "margin_direction": "Stable",
@@ -1765,25 +1765,25 @@
         "order_book": {
           "key": "order_book",
           "label": "Order book growing",
-          "value": "growing",
+          "value": "9.3 GW",
           "verdict": "PASS",
           "output_type": "pass_fail",
-          "note": "The order book is disclosed and growing, with a total of 9.3 GW as of 31st December 2025.",
+          "note": "The order book is growing with a total of 9.3 GW as of 31st December 2025.",
           "confidence": "high",
           "source": "2026-01",
           "fields": {
             "ob_trend": "Growing",
-            "ob_size_cr": 9300,
+            "ob_size_cr": null,
             "ob_book_to_bill": null
           }
         },
         "mgmt_tone": {
           "key": "mgmt_tone",
           "label": "Management tone confident & consistent",
-          "value": "confident",
+          "value": "Confident",
           "verdict": "PASS",
           "output_type": "pass_fail",
-          "note": "Management tone is confident and consistent across the quarters shown.",
+          "note": "Management tone is confident and consistent across the quarters.",
           "confidence": "high",
           "source": "2026-01",
           "fields": {
@@ -1796,7 +1796,7 @@
           "value": "",
           "verdict": "NA",
           "output_type": "pos_neu_neg",
-          "note": "No information is provided about deliberate stocking ahead of demand or channel-stuffing.",
+          "note": "No information is provided regarding strategic stocking.",
           "confidence": "low",
           "source": "",
           "fields": {
@@ -1809,7 +1809,7 @@
           "value": "",
           "verdict": "NA",
           "output_type": "pass_fail",
-          "note": "No information is provided about market share trend.",
+          "note": "No information is provided regarding market share trend.",
           "confidence": "low",
           "source": "",
           "fields": {
@@ -1819,10 +1819,10 @@
         "demand_anticipation": {
           "key": "demand_anticipation",
           "label": "Forward demand (1 strong – 5 weak)",
-          "value": "strong",
+          "value": "Strong",
           "verdict": "1",
           "output_type": "scale_1_5",
-          "note": "Management's tone implies strong forward-demand commentary.",
+          "note": "Management's tone suggests strong demand anticipation.",
           "confidence": "medium",
           "source": "2026-01",
           "fields": {}
@@ -1830,15 +1830,15 @@
         "capital_raised": {
           "key": "capital_raised",
           "label": "Capital raised for growth",
-          "value": "for growth",
-          "verdict": "PASS",
+          "value": "",
+          "verdict": "NA",
           "output_type": "pass_flag",
-          "note": "Proceeds from borrowings and issue of equity shares are used for growth and capacity expansion.",
-          "confidence": "medium",
-          "source": "2026-01",
+          "note": "No recent capital raise is mentioned for growth or other purposes.",
+          "confidence": "low",
+          "source": "",
           "fields": {
-            "cap_amount_cr": 20500,
-            "cap_purpose": "Capex",
+            "cap_amount_cr": null,
+            "cap_purpose": "None",
             "cap_dilution_pct": null
           }
         }
@@ -5116,10 +5116,10 @@
         "mgmt_tone": {
           "key": "mgmt_tone",
           "label": "Management tone confident & consistent",
-          "value": "Confident",
+          "value": "confident",
           "verdict": "PASS",
           "output_type": "pass_fail",
-          "note": "Management tone is confident and consistent across the quarters.",
+          "note": "Management tone is confident and consistent across the quarters shown.",
           "confidence": "high",
           "source": "2026-01",
           "fields": {
@@ -5132,7 +5132,7 @@
           "value": "",
           "verdict": "Neutral",
           "output_type": "pos_neu_neg",
-          "note": "No deliberate stocking ahead of demand or channel-stuffing is mentioned.",
+          "note": "No deliberate stocking ahead of demand or channel-stuffing is mentioned in the excerpts.",
           "confidence": "medium",
           "source": "2026-01",
           "fields": {
@@ -5166,7 +5166,7 @@
         "capital_raised": {
           "key": "capital_raised",
           "label": "Capital raised for growth",
-          "value": "Preferential issue",
+          "value": "preferential issue",
           "verdict": "PASS",
           "output_type": "pass_flag",
           "note": "A preferential issue was done to strengthen the balance sheet.",
