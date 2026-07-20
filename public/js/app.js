@@ -1,7 +1,7 @@
 // Daksham dashboard orchestrator. Loads the data, computes verdicts CLIENT-SIDE
 // via the shared eval module, and drives the KPIs / controls / grid / dossier.
 
-import { evaluate, computeIndustryMedians, CHECK_KEYS, psRatio } from './evaluate.mjs';
+import { evaluate, computeIndustryMedians, CHECK_KEYS, psRatio, evEbitdaClamp } from './evaluate.mjs';
 import { esc } from './format.js';
 import * as grid from './grid.js';
 import { initDossier, openDossier, closeDossier, isDossierOpen } from './dossier.js';
@@ -17,15 +17,8 @@ const N = (x) => {
   const v = Number(x);
   return Number.isFinite(v) ? v : null;
 };
-// EV/EBITDA explodes when EBITDA is ~0 (e.g. -452,042 for a near-breakeven name) — an
-// arithmetically-correct but meaningless artifact, the EV/EBITDA analogue of MAX_PS for
-// M-Cap/Sales (see psRatio). Surface such a value blank rather than a nonsense multiple;
-// a genuine high or negative multiple within the band is kept.
-const MAX_EV_EBITDA = 1000;
-const evClamp = (x) => {
-  const v = N(x);
-  return v != null && Math.abs(v) <= MAX_EV_EBITDA ? v : null;
-};
+// EV/EBITDA near-zero-EBITDA artefacts are clamped by the shared evEbitdaClamp (see
+// evaluate.mjs, the MAX_PS analogue) so the grid, dossier, and export all agree.
 const groupIN = (n) => new Intl.NumberFormat('en-IN').format(n);
 const debounce = (fn, ms) => {
   let t;
@@ -212,7 +205,7 @@ function enrich(row) {
     mcap: N(row.market_cap ?? row.mkt_cap),
     pe: N(row.stock_pe),
     pb: N(row.pb),
-    evEbitda: evClamp(row.ev_ebitda),
+    evEbitda: evEbitdaClamp(row.ev_ebitda),
     mcapSales: psRatio(row.mcap_to_sales),
     roce: N(row.roce),
     roe: N(row.roe),
@@ -238,7 +231,7 @@ function enrichPending(row) {
     mcap: N(row.market_cap ?? row.mkt_cap),
     pe: N(row.stock_pe ?? row.pe),
     pb: N(row.pb),
-    evEbitda: evClamp(row.ev_ebitda),
+    evEbitda: evEbitdaClamp(row.ev_ebitda),
     mcapSales: psRatio(row.mcap_to_sales),
     roce: N(row.roce),
     roe: N(row.roe),

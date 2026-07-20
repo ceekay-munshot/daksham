@@ -33,8 +33,8 @@ const SIGNAL_HEADERS = {
 const QUAL_COLUMNS = [
   { param: 'guidance_revenue', field: 'rev_low_pct', header: 'Rev growth – Low %', kind: 'num', pct: 150 },
   { param: 'guidance_revenue', field: 'rev_high_pct', header: 'Rev growth – High %', kind: 'num', pct: 150 },
-  { param: 'guidance_revenue', field: 'rev_target_low_cr', header: 'Rev target – Low (₹ Cr)', kind: 'num', cr: true },
-  { param: 'guidance_revenue', field: 'rev_target_high_cr', header: 'Rev target – High (₹ Cr)', kind: 'num', cr: true },
+  { param: 'guidance_revenue', field: 'rev_target_low_cr', header: 'Rev target – Low (₹ Cr)', kind: 'num', cr: true, reconcileCr: true },
+  { param: 'guidance_revenue', field: 'rev_target_high_cr', header: 'Rev target – High (₹ Cr)', kind: 'num', cr: true, reconcileCr: true },
   { param: 'guidance_revenue', field: 'rev_vs_prior', header: 'Rev guid vs prior', kind: 'enum' },
   { param: 'guidance_margin', field: 'margin_direction', header: 'Margin – Direction', kind: 'enum' },
   { param: 'guidance_margin', field: 'margin_level_pct', header: 'Margin – Level %', kind: 'num', pct: 100 },
@@ -92,6 +92,7 @@ function pickCr(text, bound) {
 const FX_NEAR_NUM = /(?:\$|£|€|us\$|\busd\b|\beur\b|\bgbp\b)\s?\d|\d[\d.]*\s?(?:mn|million|bn|billion)\s+(?:us\s?)?(?:dollars?|usd)/i;
 // Every ₹-crore figure the text states (each number × its unit factor). Mirrors the
 // extractor's crFigures; the FY strip matches this file's pickCr.
+const cr2 = (x) => Math.round(x * 100) / 100; // 2 dp so 8054 mn → 805.4, not 805.4000000000001
 const crFigures = (text) => {
   const s = String(text || '').replace(/\bFY\s?\d{2,4}(?:\s?[-–]\s?\d{2,4})?\b/gi, ' ').replace(/,/g, '');
   const out = [];
@@ -99,8 +100,8 @@ const crFigures = (text) => {
   let m;
   while ((m = re.exec(s))) {
     const k = CR_PER[m[3].toLowerCase()] || 1;
-    out.push(Number(m[1]) * k);
-    if (m[2] != null) out.push(Number(m[2]) * k);
+    out.push(cr2(Number(m[1]) * k));
+    if (m[2] != null) out.push(cr2(Number(m[2]) * k));
   }
   return out.filter((n) => Number.isFinite(n));
 };

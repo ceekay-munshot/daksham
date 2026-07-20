@@ -1,7 +1,7 @@
 // Per-company dossier — a centered modal tear-sheet. Trend rows are clickable
 // and open the full chart (chart.js) with a Screener source link.
 
-import { CHECK_KEYS } from './evaluate.mjs';
+import { CHECK_KEYS, cogsSeries } from './evaluate.mjs';
 import { esc, inrCr, price, mult, fmtMetric, pill, qualPill } from './format.js';
 import { sectorChip } from './sectors.js';
 import { sparkline } from './sparkline.js';
@@ -83,9 +83,13 @@ function getSeries(row, cfg) {
     const os = o.slice(-n);
     return rs.map((x, i) => (x * os[i]) / 100);
   }
-  let v = parseNums(row[cfg.series]);
-  if (cfg.transform === 'gm') v = v.map((x) => 100 - x);
-  return v;
+  if (cfg.transform === 'gm') {
+    // GM = 100 − COGS%, where COGS = material + manufacturing — reuse the verdict's exact
+    // cogsSeries (evaluate.mjs) so the chart can never diverge from the pass/fail if the
+    // quarterly manufacturing-cost line is ever populated (material-only overstates GM).
+    return cogsSeries(row.material_cost_pct_qtr_series, row.manufacturing_cost_pct_qtr_series).map((x) => 100 - x);
+  }
+  return parseNums(row[cfg.series]);
 }
 
 function paramRow(p, row, cfg, store) {
@@ -163,7 +167,10 @@ function bankingSectionHtml(rec, store) {
     return `<button class="trend-btn" data-chart="${id}" aria-label="Open ${esc(title)} trend chart" title="Open trend chart">${sparkline(series, { w: 72, h: 26 })}<span class="trend-ic"><i data-lucide="expand"></i></span></button>`;
   };
   const row = (icon, label, value, unit, series, chartTitle, src) => {
-    const val = value == null || value === '' ? '—' : `${value}${unit || ''}`;
+    // Round a raw metric float so a Screener value like 3.456789 shows "3.46%", not the
+    // full float. Pre-formatted strings (e.g. "₹123" book value) pass through untouched.
+    const shown = typeof value === 'number' ? Math.round(value * 100) / 100 : value;
+    const val = value == null || value === '' ? '—' : `${shown}${unit || ''}`;
     return `<div class="prow">
       <span class="prow-ic"><i data-lucide="${icon}"></i></span>
       <div class="prow-main"><div class="prow-label">${esc(label)}</div></div>

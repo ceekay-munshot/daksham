@@ -16,6 +16,7 @@ import {
   toGeminiSchema,
   RESPONSE_SCHEMA,
   PARAMS,
+  renormalizeFields,
 } from './lib/qualitative.mjs';
 import { mockFromSchema } from './lib/llm.mjs';
 
@@ -287,6 +288,10 @@ test('shapeVerdicts: revenue guidance splits into a growth-% pair and a ₹-cror
   assert.equal(f.rev_target_high_cr, 1000);
   // A model that returns the CR fields directly is honoured (no unit in value needed).
   assert.equal(rev('FY27 target', { rev_target_high_cr: '750' }).rev_target_high_cr, 750);
+  // …but a directly-returned ₹-target that mis-scales its own text is reconciled: a clean
+  // 10× unit slip is corrected, and a USD-only figure we can't FX-convert is blanked.
+  assert.equal(rev('₹3,500 cr FY27', { rev_target_high_cr: '35000' }).rev_target_high_cr, 3500);
+  assert.equal(rev('FY28 US target $400 million', { rev_target_high_cr: '40000' }).rev_target_high_cr, null);
 });
 
 test('shapeVerdicts: an absolute ₹ target dropped into a growth-% subfield is rejected', () => {
@@ -339,6 +344,22 @@ test('shapeVerdicts: a mis-scaled ₹-crore order-book / capital headline is rec
   assert.equal(ob('Order book ₹1,200 cr and growing', ''), null);
   // No ₹ figure in the text to check against → the model's number passes through.
   assert.equal(ob('order book healthy and growing', '450'), 450);
+});
+
+test('renormalizeFields: heals a stored mis-scaled ₹-crore / over-ceiling field, idempotently', () => {
+  // A param already shaped (as in the committed JSON) carrying a mis-scaled ob_size_cr —
+  // renormalize corrects it from the param's own text, leaving enums alone.
+  const ob = {
+    key: 'order_book', output_type: 'pass_fail', value: 'Order book ₹21,096 cr', note: '',
+    fields: { ob_trend: 'Growing', ob_size_cr: 210963, ob_book_to_bill: null },
+  };
+  const fixed = renormalizeFields(ob);
+  assert.equal(fixed.ob_size_cr, 21096);
+  assert.equal(fixed.ob_trend, 'Growing');
+  assert.deepEqual(renormalizeFields({ ...ob, fields: fixed }), fixed); // idempotent
+  // An over-ceiling margin % is blanked.
+  const mg = { key: 'guidance_margin', output_type: 'implied', value: 'margins ~18%', note: '', fields: { margin_direction: 'Expanding', margin_level_pct: 113 } };
+  assert.equal(renormalizeFields(mg).margin_level_pct, null);
 });
 
 test('naAllParams: every param NA with native output_type', () => {

@@ -12,6 +12,9 @@ function fmtVal(v, unit) {
   if (unit === '₹ Cr') return `₹${groupIN(Math.round(v))} Cr`;
   return v.toFixed(1);
 }
+// A change ACROSS a window on a %-unit series is a difference of percents = percentage
+// POINTS, so label it "pp" (the project's convention, cf. format.js), not "%".
+const fmtDelta = (v, unit) => (unit === '%' ? `${v.toFixed(1)} pp` : fmtVal(v, unit));
 function fmtAxis(v, unit) {
   if (unit === '₹ Cr') {
     const a = Math.abs(v);
@@ -110,7 +113,7 @@ export function openChart({ title, subtitle, values, unit = '', source }) {
   const lo = v.length ? Math.min(...v) : null;
   const hi = v.length ? Math.max(...v) : null;
   const changeHtml =
-    change == null ? '—' : `${change >= 0 ? '+' : '−'}${fmtVal(Math.abs(change), unit)}`;
+    change == null ? '—' : `${change >= 0 ? '+' : '−'}${fmtDelta(Math.abs(change), unit)}`;
 
   const src = source
     ? `<a class="src-chip" href="${esc(source.url)}" target="_blank" rel="noopener">
