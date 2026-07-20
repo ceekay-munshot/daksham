@@ -277,9 +277,12 @@ async function fetchBseCsvText(ymd, session) {
   return null;
 }
 
-// Fetch BSE bhavcopy for the SAME trading dates NSE gave us, so both series share
-// one window (a BSE day that fails to fetch simply counts as 0 turnover — the same
-// faithful average as the NSE side). Returns the collected row-arrays.
+// Fetch BSE bhavcopy for the SAME trading dates NSE gave us. BSE fetches are best-effort,
+// so fewer days may come back than NSE — the BSE average is therefore taken over the BSE
+// days actually collected (returned as the array length below), NOT the wider NSE window,
+// so a failed BSE fetch shrinks the denominator instead of silently understating ADTV.
+// A BSE day that returns but in which a scrip did not trade still counts as 0. Returns the
+// collected row-arrays.
 async function collectBseBhavcopies(isoDates, c) {
   const session = { cookie: await primeBseSession(), firecrawlKey: c.firecrawlKey };
   const days = [];
@@ -328,10 +331,12 @@ async function main() {
   // BSE-only names (numeric slugs): gate on BSE turnover over the same dates. Never
   // fatal — if too few BSE days come back, log it and fall back to excluding them.
   let bseTurnoverIndex = null;
+  let bseDaysCount = null;
   if (c.includeBse) {
     const bseDays = await collectBseBhavcopies(daysUsed, c);
     if (bseDays.length >= c.minDays) {
       bseTurnoverIndex = buildBseTurnoverIndex(bseDays);
+      bseDaysCount = bseDays.length; // average BSE turnover over the BSE days actually collected
       console.log(`  bse    : ${bseDays.length}/${daysUsed.length} days usable — including BSE-only names`);
     } else {
       console.warn(`  bse    : only ${bseDays.length} BSE days (need >= ${c.minDays}) — excluding BSE-only names this run`);
@@ -343,6 +348,7 @@ async function main() {
     turnoverIndex,
     bseTurnoverIndex,
     daysUsed,
+    bseDaysCount,
     threshold: c.threshold,
   });
 

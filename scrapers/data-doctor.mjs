@@ -14,6 +14,7 @@ import { fileURLToPath } from 'node:url';
 
 import { evaluate, computeIndustryMedians, parseSeries, CHECK_KEYS } from '../eval/evaluate.mjs';
 import { FACTOR_KEYS } from './lib/industry.mjs';
+import { renormalizeFields } from './lib/qualitative.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA = path.resolve(__dirname, '..', 'public', 'data');
@@ -198,7 +199,7 @@ export function checkNews(news, validSlugs, R) {
 export function checkQualitative(qual, validSlugs, R) {
   if (!qual || !qual.companies) { R.info('qual.absent', 'daksham-qualitative.json not present yet'); return; }
   const b = bucketer();
-  const QUAL_LEVELS = { 'qual.bad_verdict': 'error', 'qual.bad_output_type': 'error', 'lens.orphan': 'warn', 'qual.all_na_with_docs': 'info' };
+  const QUAL_LEVELS = { 'qual.bad_verdict': 'error', 'qual.bad_output_type': 'error', 'qual.field_unnormalised': 'error', 'lens.orphan': 'warn', 'qual.all_na_with_docs': 'info' };
   for (const [slug, e] of Object.entries(qual.companies)) {
     if (validSlugs.size && !validSlugs.has(slug)) b.push('lens.orphan', `qual:${slug}`);
     const params = e.params || {};
@@ -208,6 +209,16 @@ export function checkQualitative(qual, validSlugs, R) {
       if (!allowed) { b.push('qual.bad_output_type', `${slug}.${p.key || '?'}: "${p.output_type}"`); continue; }
       if (!allowed.has(String(p.verdict))) b.push('qual.bad_verdict', `${slug}.${p.key || '?'}: ${p.output_type}="${p.verdict}"`);
       if (String(p.verdict) !== 'NA') real += 1;
+      // A structured numeric field that the sanity guards would still change is a
+      // mis-scaled ₹-crore headline (10×–1000× mn/lakh/bn/USD slip) or an over-ceiling
+      // %, i.e. the unit/conversion bug class reached the file. Fail — run
+      // `node scrapers/normalize-qualitative.mjs` (and check the extractor guard).
+      if (p.fields) {
+        const fixed = renormalizeFields(p);
+        for (const k of Object.keys(fixed)) {
+          if (p.fields[k] !== fixed[k]) b.push('qual.field_unnormalised', `${slug}.${k}=${JSON.stringify(p.fields[k])} → ${JSON.stringify(fixed[k])}`);
+        }
+      }
     }
     if (real === 0 && e.meta && e.meta.docs_used > 0) b.push('qual.all_na_with_docs', slug);
   }

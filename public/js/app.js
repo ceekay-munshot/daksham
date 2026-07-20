@@ -1,7 +1,7 @@
 // Daksham dashboard orchestrator. Loads the data, computes verdicts CLIENT-SIDE
 // via the shared eval module, and drives the KPIs / controls / grid / dossier.
 
-import { evaluate, computeIndustryMedians, CHECK_KEYS, psRatio } from './evaluate.mjs';
+import { evaluate, computeIndustryMedians, CHECK_KEYS, psRatio, evEbitdaClamp } from './evaluate.mjs';
 import { esc } from './format.js';
 import * as grid from './grid.js';
 import { initDossier, openDossier, closeDossier, isDossierOpen } from './dossier.js';
@@ -9,9 +9,16 @@ import { isChartOpen, closeChart } from './chart.js';
 import { exportGrid } from './export.js';
 
 const N = (x) => {
+  // Screener leaves a metric blank ('') for loss-makers / not-computable ratios.
+  // Number('') === 0, so a bare Number() would turn "no P/E" into a P/E of 0 —
+  // the cheapest-looking stock — which then sorts to the top and exports as 0.
+  // Guard blanks to null (as psRatio() and the export/dossier num() helpers do).
+  if (x == null || (typeof x === 'string' && x.trim() === '')) return null;
   const v = Number(x);
   return Number.isFinite(v) ? v : null;
 };
+// EV/EBITDA near-zero-EBITDA artefacts are clamped by the shared evEbitdaClamp (see
+// evaluate.mjs, the MAX_PS analogue) so the grid, dossier, and export all agree.
 const groupIN = (n) => new Intl.NumberFormat('en-IN').format(n);
 const debounce = (fn, ms) => {
   let t;
@@ -198,7 +205,7 @@ function enrich(row) {
     mcap: N(row.market_cap ?? row.mkt_cap),
     pe: N(row.stock_pe),
     pb: N(row.pb),
-    evEbitda: N(row.ev_ebitda),
+    evEbitda: evEbitdaClamp(row.ev_ebitda),
     mcapSales: psRatio(row.mcap_to_sales),
     roce: N(row.roce),
     roe: N(row.roe),
@@ -224,7 +231,7 @@ function enrichPending(row) {
     mcap: N(row.market_cap ?? row.mkt_cap),
     pe: N(row.stock_pe ?? row.pe),
     pb: N(row.pb),
-    evEbitda: N(row.ev_ebitda),
+    evEbitda: evEbitdaClamp(row.ev_ebitda),
     mcapSales: psRatio(row.mcap_to_sales),
     roce: N(row.roce),
     roe: N(row.roe),

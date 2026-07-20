@@ -16,6 +16,7 @@ import {
   toGeminiSchema,
   RESPONSE_SCHEMA,
   PARAMS,
+  renormalizeFields,
 } from './lib/qualitative.mjs';
 import { mockFromSchema } from './lib/llm.mjs';
 
@@ -287,6 +288,10 @@ test('shapeVerdicts: revenue guidance splits into a growth-% pair and a ₹-cror
   assert.equal(f.rev_target_high_cr, 1000);
   // A model that returns the CR fields directly is honoured (no unit in value needed).
   assert.equal(rev('FY27 target', { rev_target_high_cr: '750' }).rev_target_high_cr, 750);
+  // …but a directly-returned ₹-target that mis-scales its own text is reconciled: a clean
+  // 10× unit slip is corrected, and a USD-only figure we can't FX-convert is blanked.
+  assert.equal(rev('₹3,500 cr FY27', { rev_target_high_cr: '35000' }).rev_target_high_cr, 3500);
+  assert.equal(rev('FY28 US target $400 million', { rev_target_high_cr: '40000' }).rev_target_high_cr, null);
 });
 
 test('shapeVerdicts: an absolute ₹ target dropped into a growth-% subfield is rejected', () => {
@@ -306,6 +311,55 @@ test('shapeVerdicts: an absolute ₹ target dropped into a growth-% subfield is 
   assert.equal(rev('103% YoY growth for FY26', '', '103').rev_high_pct, 103);
   assert.equal(rev('double revenue 550 to 1200 Cr by FY29', '', '118').rev_high_pct, 118);
   assert.deepEqual([rev('revenue growth of 15-20% next year', '15', '20').rev_low_pct, rev('revenue growth of 15-20% next year', '15', '20').rev_high_pct], [15, 20]);
+});
+
+test('shapeVerdicts: a mis-scaled ₹-crore order-book / capital headline is reconciled to its own text', () => {
+  const ob = (value, size, note = value) =>
+    shapeVerdicts(
+      { order_book: { verdict: 'PASS', value, note, confidence: 'high', ob_trend: 'Growing', ob_size_cr: size, ob_book_to_bill: '' } },
+      { sourceQuarter: '2026-05' }
+    ).order_book.fields.ob_size_cr;
+  const cap = (value, amt, note = value) =>
+    shapeVerdicts(
+      { capital_raised: { verdict: 'PASS', value, note, confidence: 'high', cap_amount_cr: amt, cap_purpose: 'Capex', cap_dilution_pct: '' } },
+      { sourceQuarter: '2026-05' }
+    ).capital_raised.fields.cap_amount_cr;
+
+  // Unit slips: the model kept the raw number, so the crore figure is 10×–100× too big.
+  assert.equal(ob('Order book ₹21,096 cr as of Mar 31', '210963'), 21096); // dropped decimal / 10×
+  assert.equal(ob('INR 34,000 Mn order book; growing', '34000'), 3400); // mn → cr (÷10)
+  assert.equal(ob('₹172 Bn order book', '172000'), 17200); // bn → cr (172 × 100)
+  assert.equal(ob('Order book of ₹21,685 lacs', '21685'), 216.85); // lacs → cr (÷100)
+  assert.equal(cap('₹331.53 cr strategic investment', '33153'), 331.53); // ×100 slip
+  // Foreign-currency amounts we can't FX-convert → blanked, never a mis-scaled ₹ number.
+  assert.equal(ob('Order backlog $800 mn; ~$1.3-1.4 bn by FY27', '8000'), null);
+  assert.equal(cap('$136 million acquisition funding', '1360'), null);
+  // A number that already agrees with its text is kept; a genuine large ₹ book too.
+  assert.equal(ob('Order book of ₹5,000 cr', '5000'), 5000);
+  assert.equal(ob('Consolidated order book INR 83,004 cr', '83004'), 83004);
+  // Two figures in the text (the raise + an unrelated, larger MOU): the model already
+  // matches the raise, so it's kept — not bumped up to the bigger number.
+  assert.equal(cap('₹30.40 crore raise; separate ₹800 crore acquisition MOU', '30.4'), 30.4);
+  // Model gave no number → the cell stays blank; we never fabricate a figure from the text.
+  assert.equal(ob('Order book ₹1,200 cr and growing', ''), null);
+  // No ₹ figure in the text to check against → the model's number passes through.
+  assert.equal(ob('order book healthy and growing', '450'), 450);
+});
+
+test('renormalizeFields: heals a stored mis-scaled ₹-crore / over-ceiling field, idempotently', () => {
+  // A param already shaped (as in the committed JSON) carrying a mis-scaled ob_size_cr —
+  // renormalize corrects it from the param's own text, leaving enums alone.
+  const ob = {
+    key: 'order_book', output_type: 'pass_fail', value: 'Order book ₹21,096 cr', note: '',
+    fields: { ob_trend: 'Growing', ob_size_cr: 210963, ob_book_to_bill: null },
+  };
+  const fixed = renormalizeFields(ob);
+  assert.equal(fixed.ob_size_cr, 21096);
+  assert.equal(fixed.ob_trend, 'Growing');
+  assert.deepEqual(renormalizeFields({ ...ob, fields: fixed }), fixed); // idempotent
+  // An over-ceiling margin % is blanked.
+  const mg = { key: 'guidance_margin', output_type: 'implied', value: 'margins ~18%', note: '', fields: { margin_direction: 'Expanding', margin_level_pct: 113 } };
+  assert.equal(renormalizeFields(mg).margin_level_pct, null);
 });
 
 test('naAllParams: every param NA with native output_type', () => {

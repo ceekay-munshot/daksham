@@ -33,19 +33,19 @@ const SIGNAL_HEADERS = {
 const QUAL_COLUMNS = [
   { param: 'guidance_revenue', field: 'rev_low_pct', header: 'Rev growth – Low %', kind: 'num', pct: 150 },
   { param: 'guidance_revenue', field: 'rev_high_pct', header: 'Rev growth – High %', kind: 'num', pct: 150 },
-  { param: 'guidance_revenue', field: 'rev_target_low_cr', header: 'Rev target – Low (₹ Cr)', kind: 'num', cr: true },
-  { param: 'guidance_revenue', field: 'rev_target_high_cr', header: 'Rev target – High (₹ Cr)', kind: 'num', cr: true },
+  { param: 'guidance_revenue', field: 'rev_target_low_cr', header: 'Rev target – Low (₹ Cr)', kind: 'num', cr: true, reconcileCr: true },
+  { param: 'guidance_revenue', field: 'rev_target_high_cr', header: 'Rev target – High (₹ Cr)', kind: 'num', cr: true, reconcileCr: true },
   { param: 'guidance_revenue', field: 'rev_vs_prior', header: 'Rev guid vs prior', kind: 'enum' },
   { param: 'guidance_margin', field: 'margin_direction', header: 'Margin – Direction', kind: 'enum' },
   { param: 'guidance_margin', field: 'margin_level_pct', header: 'Margin – Level %', kind: 'num', pct: 100 },
   { param: 'order_book', field: 'ob_trend', header: 'Order book trend', kind: 'enum' },
-  { param: 'order_book', field: 'ob_size_cr', header: 'Order book (₹ Cr)', kind: 'num' },
+  { param: 'order_book', field: 'ob_size_cr', header: 'Order book (₹ Cr)', kind: 'num', reconcileCr: true },
   { param: 'order_book', field: 'ob_book_to_bill', header: 'Book-to-bill (x)', kind: 'num' },
   { param: 'mgmt_tone', field: 'tone_grade', header: 'Mgmt tone', kind: 'enum' },
   { param: 'strategic_stocking', field: 'stocking_grade', header: 'Channel stocking', kind: 'enum' },
   { param: 'market_share', field: 'ms_trend', header: 'Market share trend', kind: 'enum' },
   { param: 'demand_anticipation', field: null, header: 'Forward demand (1=strong…5=weak)', kind: 'demand' },
-  { param: 'capital_raised', field: 'cap_amount_cr', header: 'Capital raised (₹ Cr)', kind: 'num' },
+  { param: 'capital_raised', field: 'cap_amount_cr', header: 'Capital raised (₹ Cr)', kind: 'num', reconcileCr: true },
   { param: 'capital_raised', field: 'cap_purpose', header: 'Capital purpose', kind: 'enum' },
   { param: 'capital_raised', field: 'cap_dilution_pct', header: 'Dilution %', kind: 'num', pct: 100 },
 ];
@@ -83,6 +83,42 @@ function pickCr(text, bound) {
   return bound === 'low' ? Math.min(...fin) : Math.max(...fin);
 }
 
+// Mirror of the extractor's saneCr (scrapers/lib/qualitative.mjs): reconcile a model's
+// ₹-crore order-book / capital figure against the amount its own quoted text states, so
+// a mis-scaled headline self-heals at export time for data extracted before the fix
+// landed — "₹172 Bn" stored as 172000 → 17,200; "₹331.53 cr" stored as 33153 → 331.53.
+// A foreign-currency amount we can't FX-convert is blanked; agreeing numbers pass
+// through. (Source of truth: scrapers/lib.)
+const FX_NEAR_NUM = /(?:\$|£|€|us\$|\busd\b|\beur\b|\bgbp\b)\s?\d|\d[\d.]*\s?(?:mn|million|bn|billion)\s+(?:us\s?)?(?:dollars?|usd)/i;
+// Every ₹-crore figure the text states (each number × its unit factor). Mirrors the
+// extractor's crFigures; the FY strip matches this file's pickCr.
+const cr2 = (x) => Math.round(x * 100) / 100; // 2 dp so 8054 mn → 805.4, not 805.4000000000001
+const crFigures = (text) => {
+  const s = String(text || '').replace(/\bFY\s?\d{2,4}(?:\s?[-–]\s?\d{2,4})?\b/gi, ' ').replace(/,/g, '');
+  const out = [];
+  const re = /(\d+(?:\.\d+)?)(?:\s*[-–]\s*(\d+(?:\.\d+)?))?\s*(cr\b|crores?|mn\b|million|bn\b|billion|lakhs?|lacs?)/gi;
+  let m;
+  while ((m = re.exec(s))) {
+    const k = CR_PER[m[3].toLowerCase()] || 1;
+    out.push(cr2(Number(m[1]) * k));
+    if (m[2] != null) out.push(cr2(Number(m[2]) * k));
+  }
+  return out.filter((n) => Number.isFinite(n));
+};
+const nearCr = (a, b) => Math.abs(a - b) <= Math.max(0.5, Math.abs(b) * 0.02); // ~2% (or ₹0.5 cr) tolerance
+function saneCr(n, ...texts) {
+  if (n == null) return null; // only reconcile a figure the model gave — never fabricate one for a blank
+  const raw = texts.map((t) => String(t || '')).join(' ');
+  const figs = crFigures(raw);
+  if (figs.some((f) => nearCr(n, f))) return n; // model number IS a stated ₹ figure ⇒ trust it
+  if (FX_NEAR_NUM.test(raw.replace(/,/g, ''))) return null; // a foreign-currency amount we cannot FX-convert ⇒ blank
+  for (const k of [10, 100, 1000]) {
+    const hit = figs.find((f) => nearCr(n / k, f));
+    if (hit != null) return hit; // model = a stated figure × 10^k (unit slip) ⇒ correct it
+  }
+  return n; // unrelated to any stated figure ⇒ leave the model's number as-is
+}
+
 // Coverage flag (the client's NA-disambiguation): "Covered" = we read ≥1 of this
 // company's own transcripts; "Not covered" = none harvested, so every blank qual
 // cell means "we haven't looked", not "management didn't disclose". A blank enum on
@@ -115,6 +151,9 @@ function qualCell(rec, col) {
     if (n == null && col.cr && covered && !pending && p && p.fields && !(col.field in p.fields)) {
       n = pickCr(`${p.value || ''} ${p.note || ''}`, col.field.includes('_low_') ? 'low' : 'high');
     }
+    // Order-book / capital ₹-cr headline: fix a mis-scaled provider number (10×–1000× unit
+    // slip, or an un-converted foreign amount) against the figure its own text states.
+    if (col.reconcileCr && covered && !pending && p) n = saneCr(n, p.value, p.note);
     if (n != null && col.pct != null) n = sanePct(n, col.pct, p.value, p.note); // blank a ₹-figure mis-placed in a %-column
     return { number: n };
   }

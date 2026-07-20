@@ -89,7 +89,7 @@ const saneMc = (x) => Number.isFinite(x) && x >= 0 && x <= 100;
 // Direct cost of goods = raw-material % + manufacturing % (power/fuel/conversion),
 // newest-aligned and summed. For utilities & heavy manufacturers the bulk sits in
 // manufacturing, so material alone overstates gross margin (e.g. a power co at 99%).
-function cogsSeries(materialStr, manufacturingStr) {
+export function cogsSeries(materialStr, manufacturingStr) {
   const m = parseSeries(materialStr);
   const f = parseSeries(manufacturingStr);
   if (!f.length) return m;
@@ -105,6 +105,15 @@ export const MAX_PS = 200;
 export const psRatio = (x) => {
   const n = Number(x);
   return x !== '' && x != null && Number.isFinite(n) && n >= 0 && n <= MAX_PS ? n : null;
+};
+// EV/EBITDA explodes when EBITDA is ~0 (e.g. -452,042 for a near-breakeven name) — an
+// arithmetically-correct but meaningless artefact, the EV/EBITDA analogue of MAX_PS.
+// Surface such a value blank rather than a nonsense multiple; a genuine high or negative
+// multiple within the band is kept. Shared with the dashboard (grid + dossier + export).
+export const MAX_EV_EBITDA = 1000;
+export const evEbitdaClamp = (x) => {
+  const n = Number(x);
+  return x !== '' && x != null && Number.isFinite(n) && Math.abs(n) <= MAX_EV_EBITDA ? n : null;
 };
 // Financials (banks / NBFCs / insurers) run a balance-sheet business — "EBITDA"
 // and fixed-asset turnover aren't meaningful for them, so those signals are NA.
@@ -173,7 +182,8 @@ function rawFields(row) {
   out.push(raw('mcap_to_sales', 'M-Cap / Sales', ps == null ? '' : ps));
   out.push(raw('pe', 'P/E', num(row.stock_pe)));
   out.push(raw('pb', 'P/B', num(row.pb)));
-  out.push(raw('ev_ebitda', 'EV / EBITDA', num(row.ev_ebitda)));
+  const ev = evEbitdaClamp(row.ev_ebitda);
+  out.push(raw('ev_ebitda', 'EV / EBITDA', ev == null ? '' : ev));
   out.push(raw('roce', 'ROCE %', num(row.roce)));
   out.push(raw('roe', 'ROE %', num(row.roe)));
   out.push(raw('promoter_holding', 'Promoter Holding %', num(row.promoter_holding)));

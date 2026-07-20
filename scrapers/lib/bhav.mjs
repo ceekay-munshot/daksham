@@ -120,8 +120,14 @@ export function buildTurnoverIndex(days) {
 // Pass `bseTurnoverIndex` (scrip code -> summed ₹ Cr) to also gate BSE-only names
 // (numeric slugs) on BSE turnover, tagging passers `liquidity_source: "bse"`. Omit
 // it (or pass null) to keep the NSE-only behaviour: BSE-only names are excluded.
-export function computeLiquidUniverse({ universe, turnoverIndex, bseTurnoverIndex = null, daysUsed, threshold = 4 }) {
+// `bseDaysCount` is the number of BSE bhavcopies actually summed — BSE is fetched
+// best-effort and can return fewer days than the NSE window, so BSE turnover is
+// averaged over ITS own day count, symmetric with the NSE side (which divides by its
+// collected-day count). Dividing BSE sums by the wider NSE window would understate a
+// BSE name's ADTV and wrongly fail it at the gate. Defaults to the NSE count.
+export function computeLiquidUniverse({ universe, turnoverIndex, bseTurnoverIndex = null, daysUsed, bseDaysCount = null, threshold = 4 }) {
   const daysCounted = daysUsed.length;
+  const bseDaysCounted = bseDaysCount != null ? bseDaysCount : daysCounted;
   const liquid = [];
   const failedSamples = [];
   const bseSlugs = [];
@@ -139,9 +145,9 @@ export function computeLiquidUniverse({ universe, turnoverIndex, bseTurnoverInde
         continue;
       }
       const sum = bseTurnoverIndex.get(slug) || 0;
-      const adtv = round2(daysCounted ? sum / daysCounted : 0);
+      const adtv = round2(bseDaysCounted ? sum / bseDaysCounted : 0);
       if (adtv >= threshold) {
-        liquid.push({ ...row, adtv_30d_cr: adtv, days_counted: daysCounted, liquidity_source: 'bse' });
+        liquid.push({ ...row, adtv_30d_cr: adtv, days_counted: bseDaysCounted, liquidity_source: 'bse' });
         bsePassed++;
       } else {
         bseFailed++;

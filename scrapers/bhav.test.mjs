@@ -165,6 +165,20 @@ test('computeLiquidUniverse: BSE-only names gated when a BSE index is supplied',
   assert.equal(debug.bse_only_excluded, 0); // nothing excluded when BSE data is present
 });
 
+test('computeLiquidUniverse: BSE ADTV averages over BSE days collected, not the wider NSE window', () => {
+  const turnoverIndex = buildTurnoverIndex([parseBhavcopy(DAY1)]);
+  // 150 Cr for 500325 summed over 2 BSE days, but the NSE window is 3 days (one BSE
+  // fetch failed). ADTV must be 150/2 = 75, not 150/3 = 50 (the old full-window bug).
+  const bseTurnoverIndex = buildBseTurnoverIndex([parseBseBhavcopy(BSE_UDIFF), parseBseBhavcopy(BSE_UDIFF)]);
+  const daysUsed = ['2026-07-13', '2026-07-12', '2026-07-11'];
+  const universe = [{ name: 'Reliance BSE', slug: '500325' }];
+
+  const { liquid } = computeLiquidUniverse({ universe, turnoverIndex, bseTurnoverIndex, daysUsed, bseDaysCount: 2, threshold: 4 });
+  assert.equal(liquid.length, 1);
+  assert.equal(liquid[0].adtv_30d_cr, 75);
+  assert.equal(liquid[0].days_counted, 2);
+});
+
 test('computeLiquidUniverse: without a BSE index, BSE-only names stay excluded', () => {
   const turnoverIndex = buildTurnoverIndex([parseBhavcopy(DAY1)]);
   const universe = [{ slug: 'RELIANCE' }, { slug: '500325' }];
