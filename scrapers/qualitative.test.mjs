@@ -308,6 +308,39 @@ test('shapeVerdicts: an absolute ₹ target dropped into a growth-% subfield is 
   assert.deepEqual([rev('revenue growth of 15-20% next year', '15', '20').rev_low_pct, rev('revenue growth of 15-20% next year', '15', '20').rev_high_pct], [15, 20]);
 });
 
+test('shapeVerdicts: a mis-scaled ₹-crore order-book / capital headline is reconciled to its own text', () => {
+  const ob = (value, size, note = value) =>
+    shapeVerdicts(
+      { order_book: { verdict: 'PASS', value, note, confidence: 'high', ob_trend: 'Growing', ob_size_cr: size, ob_book_to_bill: '' } },
+      { sourceQuarter: '2026-05' }
+    ).order_book.fields.ob_size_cr;
+  const cap = (value, amt, note = value) =>
+    shapeVerdicts(
+      { capital_raised: { verdict: 'PASS', value, note, confidence: 'high', cap_amount_cr: amt, cap_purpose: 'Capex', cap_dilution_pct: '' } },
+      { sourceQuarter: '2026-05' }
+    ).capital_raised.fields.cap_amount_cr;
+
+  // Unit slips: the model kept the raw number, so the crore figure is 10×–100× too big.
+  assert.equal(ob('Order book ₹21,096 cr as of Mar 31', '210963'), 21096); // dropped decimal / 10×
+  assert.equal(ob('INR 34,000 Mn order book; growing', '34000'), 3400); // mn → cr (÷10)
+  assert.equal(ob('₹172 Bn order book', '172000'), 17200); // bn → cr (172 × 100)
+  assert.equal(ob('Order book of ₹21,685 lacs', '21685'), 216.85); // lacs → cr (÷100)
+  assert.equal(cap('₹331.53 cr strategic investment', '33153'), 331.53); // ×100 slip
+  // Foreign-currency amounts we can't FX-convert → blanked, never a mis-scaled ₹ number.
+  assert.equal(ob('Order backlog $800 mn; ~$1.3-1.4 bn by FY27', '8000'), null);
+  assert.equal(cap('$136 million acquisition funding', '1360'), null);
+  // A number that already agrees with its text is kept; a genuine large ₹ book too.
+  assert.equal(ob('Order book of ₹5,000 cr', '5000'), 5000);
+  assert.equal(ob('Consolidated order book INR 83,004 cr', '83004'), 83004);
+  // Two figures in the text (the raise + an unrelated, larger MOU): the model already
+  // matches the raise, so it's kept — not bumped up to the bigger number.
+  assert.equal(cap('₹30.40 crore raise; separate ₹800 crore acquisition MOU', '30.4'), 30.4);
+  // Model gave no number → the cell stays blank; we never fabricate a figure from the text.
+  assert.equal(ob('Order book ₹1,200 cr and growing', ''), null);
+  // No ₹ figure in the text to check against → the model's number passes through.
+  assert.equal(ob('order book healthy and growing', '450'), 450);
+});
+
 test('naAllParams: every param NA with native output_type', () => {
   const na = naAllParams('No transcripts/PPT harvested');
   assert.equal(Object.keys(na).length, PARAMS.length);

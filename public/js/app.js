@@ -17,6 +17,15 @@ const N = (x) => {
   const v = Number(x);
   return Number.isFinite(v) ? v : null;
 };
+// EV/EBITDA explodes when EBITDA is ~0 (e.g. -452,042 for a near-breakeven name) — an
+// arithmetically-correct but meaningless artifact, the EV/EBITDA analogue of MAX_PS for
+// M-Cap/Sales (see psRatio). Surface such a value blank rather than a nonsense multiple;
+// a genuine high or negative multiple within the band is kept.
+const MAX_EV_EBITDA = 1000;
+const evClamp = (x) => {
+  const v = N(x);
+  return v != null && Math.abs(v) <= MAX_EV_EBITDA ? v : null;
+};
 const groupIN = (n) => new Intl.NumberFormat('en-IN').format(n);
 const debounce = (fn, ms) => {
   let t;
@@ -203,7 +212,7 @@ function enrich(row) {
     mcap: N(row.market_cap ?? row.mkt_cap),
     pe: N(row.stock_pe),
     pb: N(row.pb),
-    evEbitda: N(row.ev_ebitda),
+    evEbitda: evClamp(row.ev_ebitda),
     mcapSales: psRatio(row.mcap_to_sales),
     roce: N(row.roce),
     roe: N(row.roe),
@@ -229,7 +238,7 @@ function enrichPending(row) {
     mcap: N(row.market_cap ?? row.mkt_cap),
     pe: N(row.stock_pe ?? row.pe),
     pb: N(row.pb),
-    evEbitda: N(row.ev_ebitda),
+    evEbitda: evClamp(row.ev_ebitda),
     mcapSales: psRatio(row.mcap_to_sales),
     roce: N(row.roce),
     roe: N(row.roe),
