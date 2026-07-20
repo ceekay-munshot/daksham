@@ -9,6 +9,11 @@ import { isChartOpen, closeChart } from './chart.js';
 import { exportGrid } from './export.js';
 
 const N = (x) => {
+  // Screener leaves a metric blank ('') for loss-makers / not-computable ratios.
+  // Number('') === 0, so a bare Number() would turn "no P/E" into a P/E of 0 —
+  // the cheapest-looking stock — which then sorts to the top and exports as 0.
+  // Guard blanks to null (as psRatio() and the export/dossier num() helpers do).
+  if (x == null || (typeof x === 'string' && x.trim() === '')) return null;
   const v = Number(x);
   return Number.isFinite(v) ? v : null;
 };
