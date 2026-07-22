@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-22T08:23:42.608Z",
+  "generated_at": "2026-07-22T13:33:45.613Z",
   "provider": "gemini, groq, cerebras, mistral",
   "model": "gemini-2.5-flash-lite, llama-3.3-70b-versatile, llama3.1-8b, mistral-small-latest",
   "input_max_chars": 24000,
@@ -1861,7 +1861,7 @@
           "value": "",
           "verdict": "NA",
           "output_type": "implied",
-          "note": "No forward revenue-growth outlook is provided in the excerpts.",
+          "note": "Management did not provide specific forward-looking revenue guidance in the provided excerpts.",
           "confidence": "high",
           "source": "",
           "fields": {
@@ -1875,39 +1875,39 @@
         "guidance_margin": {
           "key": "guidance_margin",
           "label": "EBITDA-margin guidance (implied)",
-          "value": "stable",
+          "value": "EBITDA margin around 35.9%",
           "verdict": "DISCLOSED",
           "output_type": "implied",
-          "note": "Management implies that EBITDA margins will remain strong due to improved technology and process R&D.",
-          "confidence": "medium",
+          "note": "Management stated they are comfortable with the current EBITDA per watt peak and do not see pressure on it going forward, implying maintenance of current levels.",
+          "confidence": "high",
           "source": "2026-01",
           "fields": {
             "margin_direction": "Stable",
-            "margin_level_pct": 35
+            "margin_level_pct": 35.9
           }
         },
         "order_book": {
           "key": "order_book",
           "label": "Order book growing",
-          "value": "growing",
+          "value": "9.3 GW",
           "verdict": "PASS",
           "output_type": "pass_fail",
-          "note": "The order book is disclosed and growing, with a 9.3 GW order book as of 31st December 2025.",
+          "note": "The order book was 9.3 GW as of December 31, 2025, including a 4.5 GW multi-year TopCon cell order, providing good visibility.",
           "confidence": "high",
           "source": "2026-01",
           "fields": {
             "ob_trend": "Growing",
-            "ob_size_cr": 9300,
+            "ob_size_cr": null,
             "ob_book_to_bill": null
           }
         },
         "mgmt_tone": {
           "key": "mgmt_tone",
           "label": "Management tone confident & consistent",
-          "value": "confident",
+          "value": "Confident and focused on long-term value",
           "verdict": "PASS",
           "output_type": "pass_fail",
-          "note": "Management tone is confident and consistent across the quarters shown.",
+          "note": "Management expressed confidence in their execution, capacity additions, and commitment to transparency and long-term shareholder value.",
           "confidence": "high",
           "source": "2026-01",
           "fields": {
@@ -1917,14 +1917,14 @@
         "strategic_stocking": {
           "key": "strategic_stocking",
           "label": "Strategic stocking vs channel-stuffing",
-          "value": "",
+          "value": "Capacity expansion aligned with demand",
           "verdict": "Neutral",
           "output_type": "pos_neu_neg",
-          "note": "No information is provided about deliberate stocking ahead of demand or channel-stuffing.",
-          "confidence": "low",
+          "note": "The company is expanding capacity to match expected acceleration in domestic cell demand and to reduce upstream supply risk.",
+          "confidence": "high",
           "source": "2026-01",
           "fields": {
-            "stocking_grade": "Neutral"
+            "stocking_grade": "Restocking"
           }
         },
         "market_share": {
@@ -1933,8 +1933,8 @@
           "value": "",
           "verdict": "NA",
           "output_type": "pass_fail",
-          "note": "No information is provided about market share trends.",
-          "confidence": "low",
+          "note": "Management did not provide specific commentary on market share trends over the past few years.",
+          "confidence": "high",
           "source": "",
           "fields": {
             "ms_trend": "Not disclosed"
@@ -1943,26 +1943,26 @@
         "demand_anticipation": {
           "key": "demand_anticipation",
           "label": "Forward demand (1 strong – 5 weak)",
-          "value": "strong",
-          "verdict": "1",
+          "value": "Strong demand expected from ALMM II and C&I/Rooftop segments",
+          "verdict": "2",
           "output_type": "scale_1_5",
-          "note": "Management expects demand to strengthen through FY27 as grandfathered non-DCR projects roll-off and ALMM-led procurement becomes more broad-based.",
-          "confidence": "medium",
+          "note": "Demand is expected to accelerate due to the ALMM II mandate and growth in C&I and rooftop segments, with utility-scale demand visibility extending into FY28.",
+          "confidence": "high",
           "source": "2026-01",
           "fields": {}
         },
         "capital_raised": {
           "key": "capital_raised",
           "label": "Capital raised for growth",
-          "value": "for growth",
-          "verdict": "PASS",
+          "value": "",
+          "verdict": "NA",
           "output_type": "pass_flag",
-          "note": "Debt of approximately ₹3,300 crore has been tied up at a sub-8% cost for the 6 GW integrated cell and module expansion project.",
-          "confidence": "high",
-          "source": "2026-01",
+          "note": "While a large expansion project is mentioned with debt financing, there is no explicit mention of capital being raised in the provided excerpts.",
+          "confidence": "medium",
+          "source": "",
           "fields": {
-            "cap_amount_cr": 3300,
-            "cap_purpose": "Capex",
+            "cap_amount_cr": null,
+            "cap_purpose": "None",
             "cap_dilution_pct": null
           }
         }
@@ -1972,7 +1972,7 @@
         "chars_in": 23999,
         "est_tokens": 6000,
         "source": "2026-01",
-        "provider": "groq",
+        "provider": "gemini",
         "pack_v": 5
       }
     },
