@@ -4,6 +4,7 @@
 // distinguish "retry" (429 / 5xx) from "malformed output" (retry once then NA).
 
 import { RESPONSE_SCHEMA, toGeminiSchema } from './qualitative.mjs';
+import { callClaudeBedrock } from './llm-bedrock.mjs';
 
 export class LLMError extends Error {
   constructor(message, { status = 0, retryable = false, quota = false, parse = false, body = '', retryAfterMs = 0 } = {}) {
@@ -201,6 +202,13 @@ export async function callLLM({ provider, model, apiKey, system, user, schema = 
     case 'mistral':
       return callOpenAICompat(provider, { model, apiKey, system, user, timeoutMs });
     case 'openai':
+      // LLM_PROVIDER toggle (default 'openai', i.e. unset = no change): flips this
+      // slot to Claude via AWS Bedrock without touching callOpenAI() itself — see
+      // llm-bedrock.mjs, which is the entire Claude/Bedrock path and can be deleted
+      // on its own to fully revert this.
+      if ((process.env.LLM_PROVIDER || 'openai') === 'claude') {
+        return callClaudeBedrock({ system, user, schema, timeoutMs });
+      }
       return callOpenAI({ model, apiKey, system, user, schema, timeoutMs });
     case 'anthropic':
       return callAnthropic({ model, apiKey, system, user, schema, timeoutMs });
