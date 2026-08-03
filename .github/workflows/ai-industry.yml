@@ -55,6 +55,12 @@ jobs:
       MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      # Claude-via-Bedrock path (see scrapers/lib/llm-bedrock.mjs). Inert unless
+      # LLM_PROVIDER is flipped to "claude" — defaults keep the OpenAI path as-is.
+      LLM_PROVIDER: ${{ vars.LLM_PROVIDER || 'openai' }}
+      CLAUDE_BEDROCK_API_KEY: ${{ secrets.temp_claude_token }}
+      BEDROCK_REGION: ${{ vars.BEDROCK_REGION }}
+      BEDROCK_MODEL_ID: ${{ vars.BEDROCK_MODEL_ID }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
