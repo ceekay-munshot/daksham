@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-01T20:23:50.347Z",
+  "generated_at": "2026-09-02T01:54:40.073Z",
   "provider": "gemini, groq, cerebras, mistral",
   "model": "gemini-2.5-flash-lite, llama-3.3-70b-versatile, llama3.1-8b, mistral-small-latest",
   "input_max_chars": 24000,
@@ -2490,27 +2490,27 @@
         "guidance_revenue": {
           "key": "guidance_revenue",
           "label": "Revenue guidance (implied)",
-          "value": "₹8,000-8,500 cr FY26; 12-13% EBITDA margin for BESS",
+          "value": "FY26 revenue target ~₹2,600 cr; FY27 revenue target ~₹3,400-3,500 cr",
           "verdict": "DISCLOSED",
           "output_type": "implied",
-          "note": "Management guided ₹8,000-8,500 cr revenue for FY26 in May 2025 call and maintained confidence in H1 FY26 call.",
+          "note": "Management guided FY26 revenue target of ₹2,600 cr and FY27 revenue target of ₹3,400-3,500 cr in the May 2025 call; newest Nov 2025 call did not restate but implied sustainability of growth.",
           "confidence": "high",
           "source": "2025-11",
           "fields": {
             "rev_low_pct": null,
             "rev_high_pct": null,
-            "rev_target_low_cr": 8000,
-            "rev_target_high_cr": 8500,
-            "rev_vs_prior": "Maintained"
+            "rev_target_low_cr": 2600,
+            "rev_target_high_cr": 2600,
+            "rev_vs_prior": "Not disclosed"
           }
         },
         "guidance_margin": {
           "key": "guidance_margin",
           "label": "EBITDA-margin guidance (implied)",
-          "value": "Sustain/improve EBITDA margins; BESS 12-13%",
+          "value": "EBITDA margin stable to expanding; BESS ~12-13%; overall margins to sustain or improve 100 bps",
           "verdict": "DISCLOSED",
           "output_type": "implied",
-          "note": "Management stated margins will sustain or improve by ~100 bps and BESS EBITDA margin guidance is 12-13%.",
+          "note": "Management stated margins will sustain or improve by ~100 bps and BESS EBITDA margin ~12-13%.",
           "confidence": "high",
           "source": "2025-11",
           "fields": {
@@ -2521,25 +2521,25 @@
         "order_book": {
           "key": "order_book",
           "label": "Order book growing",
-          "value": "₹6,000 cr order book; growing YoY",
+          "value": "Order book growing YoY; ₹5,044 cr (Mar-2025) → ₹6,000 cr (target Mar-2026) → ₹8,500 cr (target Mar-2026)",
           "verdict": "PASS",
           "output_type": "pass_fail",
-          "note": "Order book disclosed at ₹6,000 cr in Nov 2025 call, up from ₹5,044 cr in May 2025, indicating growth.",
+          "note": "Order book disclosed as ₹5,044 cr in Mar-2025, targeted to reach ₹6,000 cr by Mar-2026 and ₹8,500 cr by Mar-2026, indicating growth.",
           "confidence": "high",
           "source": "2025-11",
           "fields": {
             "ob_trend": "Growing",
-            "ob_size_cr": 6000,
+            "ob_size_cr": 8500,
             "ob_book_to_bill": null
           }
         },
         "mgmt_tone": {
           "key": "mgmt_tone",
           "label": "Management tone confident & consistent",
-          "value": "Confident and consistent",
+          "value": "Confident and consistent across calls",
           "verdict": "PASS",
           "output_type": "pass_fail",
-          "note": "Management expressed strong confidence in execution, margins, and growth across both calls.",
+          "note": "Management expressed confidence in execution, margins, and growth across both calls with positive tone.",
           "confidence": "high",
           "source": "2025-11",
           "fields": {
@@ -2552,7 +2552,7 @@
           "value": "",
           "verdict": "NA",
           "output_type": "pos_neu_neg",
-          "note": "No disclosure on inventory stocking strategy or channel-stuffing risk.",
+          "note": "No explicit commentary on inventory stocking strategy or channel-stuffing risk.",
           "confidence": "high",
           "source": "",
           "fields": {
@@ -2565,8 +2565,8 @@
           "value": "",
           "verdict": "NA",
           "output_type": "pass_fail",
-          "note": "No explicit disclosure on market share trend over ~3 years.",
-          "confidence": "high",
+          "note": "No direct disclosure on market share trend over ~3 years.",
+          "confidence": "low",
           "source": "",
           "fields": {
             "ms_trend": "Not disclosed"
@@ -2575,10 +2575,10 @@
         "demand_anticipation": {
           "key": "demand_anticipation",
           "label": "Forward demand (1 strong – 5 weak)",
-          "value": "Very strong forward-demand commentary",
-          "verdict": "1",
+          "value": "Strong demand in renewables and BESS; railways and telecom growth expected",
+          "verdict": "2",
           "output_type": "scale_1_5",
-          "note": "Management highlighted strong order book, large tenders in pipeline, and growth plans across segments.",
+          "note": "Management highlighted strong order flow in renewables and BESS, and growth plans in railways and telecom, indicating strong forward demand.",
           "confidence": "high",
           "source": "2025-11",
           "fields": {}
@@ -2589,7 +2589,7 @@
           "value": "",
           "verdict": "NA",
           "output_type": "pass_flag",
-          "note": "No disclosure of recent capital raise in the provided excerpts.",
+          "note": "No disclosure of recent capital raise in the excerpts.",
           "confidence": "high",
           "source": "",
           "fields": {
@@ -10674,10 +10674,10 @@
         "guidance_revenue": {
           "key": "guidance_revenue",
           "label": "Revenue guidance (implied)",
-          "value": "15-20% FY26 revenue growth; ₹14,000-15,000 cr order book target",
+          "value": "15-20% FY26 revenue growth; ₹14,000-15,000 cr order book",
           "verdict": "DISCLOSED",
           "output_type": "implied",
-          "note": "Management guided FY26 revenue growth of 15% to 20% and order book target of ₹14,000-15,000 cr in Feb-2026 call.",
+          "note": "Management guided FY26 revenue growth of 15%-20% and order book target of ₹14,000-15,000 cr in Feb-2026 call.",
           "confidence": "high",
           "source": "2026-02",
           "fields": {
@@ -10694,7 +10694,7 @@
           "value": "10-11% EBITDA margin",
           "verdict": "DISCLOSED",
           "output_type": "implied",
-          "note": "Management stated EBITDA margin of 10% to 11% is expected going forward in Feb-2026 call.",
+          "note": "Management stated double-digit EBITDA margins of 10-11% are expected going forward in Feb-2026 call.",
           "confidence": "high",
           "source": "2026-02",
           "fields": {
@@ -10708,7 +10708,7 @@
           "value": "₹21,800 cr order book; growing YoY",
           "verdict": "PASS",
           "output_type": "pass_fail",
-          "note": "Order book reported at ₹21,800 cr in Feb-2026 call, up from ₹9,700 cr in Oct-2025 call, indicating growth.",
+          "note": "Order book reported at ₹21,800 cr in Feb-2026 call, up from ₹9,700 cr in Oct-2025 and ₹6,189 cr in H1 FY26.",
           "confidence": "high",
           "source": "2026-02",
           "fields": {
@@ -10720,7 +10720,7 @@
         "mgmt_tone": {
           "key": "mgmt_tone",
           "label": "Management tone confident & consistent",
-          "value": "Consistently positive on execution and outlook",
+          "value": "Positive and consistent",
           "verdict": "PASS",
           "output_type": "pass_fail",
           "note": "Management expressed confidence in execution, margins, and order book across multiple calls with positive tone.",
@@ -10736,7 +10736,7 @@
           "value": "",
           "verdict": "NA",
           "output_type": "pos_neu_neg",
-          "note": "No explicit commentary on deliberate stocking, destocking, or channel-stuffing in excerpts.",
+          "note": "No disclosure on deliberate stocking, destocking, or channel-stuffing in excerpts.",
           "confidence": "high",
           "source": "",
           "fields": {
@@ -10749,7 +10749,7 @@
           "value": "",
           "verdict": "NA",
           "output_type": "pass_fail",
-          "note": "No direct disclosure on market share trend or position in the excerpts.",
+          "note": "No explicit disclosure on market share trend over ~3 years in excerpts.",
           "confidence": "high",
           "source": "",
           "fields": {
@@ -10759,11 +10759,11 @@
         "demand_anticipation": {
           "key": "demand_anticipation",
           "label": "Forward demand (1 strong – 5 weak)",
-          "value": "Strong demand with some execution delays",
+          "value": "Strong demand outlook with large infra capex pipeline",
           "verdict": "2",
           "output_type": "scale_1_5",
-          "note": "Management highlighted strong order inflows and large pipeline but noted execution delays (e.g., Vadhavan Port) tempering demand optimism.",
-          "confidence": "medium",
+          "note": "Management highlighted strong infra capex trend (₹12.22 L cr budget) and diversified order book indicating robust demand.",
+          "confidence": "high",
           "source": "2026-02",
           "fields": {}
         },
@@ -10773,7 +10773,7 @@
           "value": "",
           "verdict": "NA",
           "output_type": "pass_flag",
-          "note": "No mention of recent capital raising (equity/debt) for growth or otherwise in the excerpts.",
+          "note": "No disclosure of any recent capital raise in the provided excerpts.",
           "confidence": "high",
           "source": "",
           "fields": {
@@ -26546,41 +26546,41 @@
         "guidance_revenue": {
           "key": "guidance_revenue",
           "label": "Revenue guidance (implied)",
-          "value": "INR 3,500 Cr - INR 500 Cr",
+          "value": "40-50% YoY growth for next 2 years",
           "verdict": "DISCLOSED",
           "output_type": "implied",
-          "note": "The company aims for a top-line of INR 3,500 Cr to INR 500 Cr over the next two years.",
+          "note": "Management explicitly states growth of \"not less than 40%, 50% year-on-year, year-on-year\" for at least the next two years.",
           "confidence": "high",
           "source": "2025-11",
           "fields": {
-            "rev_low_pct": null,
-            "rev_high_pct": null,
-            "rev_target_low_cr": 3500,
-            "rev_target_high_cr": 500,
-            "rev_vs_prior": "Maintained"
+            "rev_low_pct": 40,
+            "rev_high_pct": 50,
+            "rev_target_low_cr": null,
+            "rev_target_high_cr": null,
+            "rev_vs_prior": "Not disclosed"
           }
         },
         "guidance_margin": {
           "key": "guidance_margin",
           "label": "EBITDA-margin guidance (implied)",
-          "value": "14.4% EBITDA margin",
-          "verdict": "DISCLOSED",
+          "value": "",
+          "verdict": "NA",
           "output_type": "implied",
-          "note": "For H1 FY26, the company reported an EBITDA margin of 14.4% of revenue.",
+          "note": "No explicit EBITDA-margin guidance is provided in the excerpts.",
           "confidence": "high",
-          "source": "2025-11",
+          "source": "",
           "fields": {
             "margin_direction": "Not disclosed",
-            "margin_level_pct": 14.4
+            "margin_level_pct": null
           }
         },
         "order_book": {
           "key": "order_book",
           "label": "Order book growing",
-          "value": "INR 10,350 Cr+",
+          "value": "Order book growing YoY",
           "verdict": "PASS",
           "output_type": "pass_fail",
-          "note": "The order book stands robust at INR 9,957 Cr as of September 2025, with additional orders of INR 400 Cr received, bringing the total to over INR 10,350 Cr.",
+          "note": "Order book reported at ₹9,957 crore in Sep 2025 and expected to reach ~₹10,350 crore, indicating growth over prior periods.",
           "confidence": "high",
           "source": "2025-11",
           "fields": {
@@ -26592,10 +26592,10 @@
         "mgmt_tone": {
           "key": "mgmt_tone",
           "label": "Management tone confident & consistent",
-          "value": "Confident and focused on growth",
+          "value": "Consistently positive and confident",
           "verdict": "PASS",
           "output_type": "pass_fail",
-          "note": "Management expresses confidence in meeting targets, supported by a robust order book and clear visibility of opportunities, while also focusing on operational consolidation and efficiency.",
+          "note": "Management repeatedly expresses confidence in growth, execution, and market positioning across multiple calls.",
           "confidence": "high",
           "source": "2025-11",
           "fields": {
@@ -26605,14 +26605,14 @@
         "strategic_stocking": {
           "key": "strategic_stocking",
           "label": "Strategic stocking vs channel-stuffing",
-          "value": "Neutral inventory management",
-          "verdict": "Neutral",
+          "value": "",
+          "verdict": "NA",
           "output_type": "pos_neu_neg",
-          "note": "The company focuses on disciplined execution and supply chain management to maintain momentum, without explicit mention of strategic stocking or destocking.",
-          "confidence": "medium",
-          "source": "2025-11",
+          "note": "No explicit commentary on inventory stocking strategy is provided in the excerpts.",
+          "confidence": "high",
+          "source": "",
           "fields": {
-            "stocking_grade": "Neutral"
+            "stocking_grade": ""
           }
         },
         "market_share": {
@@ -26621,8 +26621,8 @@
           "value": "",
           "verdict": "NA",
           "output_type": "pass_fail",
-          "note": "Market share trends are not explicitly discussed in the provided excerpts.",
-          "confidence": "low",
+          "note": "No direct market-share trend or comparison is disclosed in the excerpts.",
+          "confidence": "high",
           "source": "",
           "fields": {
             "ms_trend": "Not disclosed"
@@ -26631,21 +26631,21 @@
         "demand_anticipation": {
           "key": "demand_anticipation",
           "label": "Forward demand (1 strong – 5 weak)",
-          "value": "Positive outlook",
-          "verdict": "2",
+          "value": "Very strong forward-demand commentary",
+          "verdict": "1",
           "output_type": "scale_1_5",
-          "note": "Management commentary indicates a positive market outlook and strong order pipeline, suggesting good demand anticipation.",
-          "confidence": "medium",
+          "note": "Management highlights robust order pipeline, strong market response for data centers, and sustained growth in T&D and smart metering segments.",
+          "confidence": "high",
           "source": "2025-11",
           "fields": {}
         },
         "capital_raised": {
           "key": "capital_raised",
           "label": "Capital raised for growth",
-          "value": "INR 1,250 Cr raised via QIP",
+          "value": "₹1,250 crore QIP for growth capex",
           "verdict": "PASS",
           "output_type": "pass_flag",
-          "note": "INR 1,250 crores has been raised on a QIP basis, available for the next growth phase, including investments in data centers, AMI, and TBCB projects.",
+          "note": "Company raised ₹1,250 crore via QIP in prior years for growth investments in data centers, AMI, and transmission projects.",
           "confidence": "high",
           "source": "2025-11",
           "fields": {
@@ -26660,7 +26660,7 @@
         "chars_in": 23999,
         "est_tokens": 6000,
         "source": "2025-11",
-        "provider": "gemini",
+        "provider": "mistral",
         "pack_v": 5
       }
     },
@@ -43814,7 +43814,7 @@
           "value": "",
           "verdict": "NA",
           "output_type": "pass_fail",
-          "note": "GNFC is a chemicals and fertilizers producer without an order-book business model; no order book is disclosed.",
+          "note": "GNFC is a chemicals and fertilizers producer without an order-book business model.",
           "confidence": "high",
           "source": "",
           "fields": {
@@ -43826,7 +43826,7 @@
         "mgmt_tone": {
           "key": "mgmt_tone",
           "label": "Management tone confident & consistent",
-          "value": "Confident",
+          "value": "Confident and consistent",
           "verdict": "PASS",
           "output_type": "pass_fail",
           "note": "Management expresses confidence in operations, capacity utilization, and project progress across multiple calls.",
@@ -43842,7 +43842,7 @@
           "value": "",
           "verdict": "NA",
           "output_type": "pos_neu_neg",
-          "note": "No commentary on deliberate stocking, destocking, or channel-stuffing is provided in the excerpts.",
+          "note": "No commentary on deliberate stocking, destocking, or channel-stuffing is present in the excerpts.",
           "confidence": "high",
           "source": "",
           "fields": {
@@ -43855,20 +43855,20 @@
           "value": "Stable to gaining",
           "verdict": "PASS",
           "output_type": "pass_fail",
-          "note": "Management highlights TDI market share around 60% and expects ammonium nitrate imports to be absorbed domestically, implying stable or improving share.",
+          "note": "Management highlights TDI market share at ~60% and expects downstream projects to strengthen market share.",
           "confidence": "medium",
           "source": "2026-05",
           "fields": {
-            "ms_trend": "Stable"
+            "ms_trend": "Gaining"
           }
         },
         "demand_anticipation": {
           "key": "demand_anticipation",
           "label": "Forward demand (1 strong – 5 weak)",
-          "value": "Moderate",
+          "value": "Moderate demand outlook",
           "verdict": "3",
           "output_type": "scale_1_5",
-          "note": "Management notes geopolitical challenges, methanol volatility, and war impacts, but also cites strong domestic demand absorption and project-driven growth.",
+          "note": "Management notes geopolitical challenges, methanol volatility, and mixed demand signals across segments.",
           "confidence": "medium",
           "source": "2026-05",
           "fields": {}
@@ -46635,7 +46635,7 @@
           "value": "",
           "verdict": "NA",
           "output_type": "implied",
-          "note": "Management explicitly stated they would not provide guidance on revenue.",
+          "note": "Management explicitly declined to give any forward revenue guidance in the excerpts.",
           "confidence": "high",
           "source": "",
           "fields": {
@@ -46649,15 +46649,15 @@
         "guidance_margin": {
           "key": "guidance_margin",
           "label": "EBITDA-margin guidance (implied)",
-          "value": "The company has previously stated a target to operate at a gross margin of 25% to 26%.",
+          "value": "Aspirational EBITDA CAGR 20% over next two years",
           "verdict": "DISCLOSED",
           "output_type": "implied",
-          "note": "The company previously stated they would be happy operating at a gross margin of 25% to 26%, and with new ambitions, this should slowly improve.",
-          "confidence": "medium",
+          "note": "Management stated an aspirational EBITDA CAGR growth target of 20% over the next two years.",
+          "confidence": "high",
           "source": "2026-01",
           "fields": {
             "margin_direction": "Expanding",
-            "margin_level_pct": 25
+            "margin_level_pct": null
           }
         },
         "order_book": {
@@ -46666,7 +46666,7 @@
           "value": "",
           "verdict": "NA",
           "output_type": "pass_fail",
-          "note": "The company's business model does not appear to be based on a traditional order book.",
+          "note": "Tanla operates on a SaaS/enterprise platform model and does not disclose an order book.",
           "confidence": "high",
           "source": "",
           "fields": {
@@ -46678,10 +46678,10 @@
         "mgmt_tone": {
           "key": "mgmt_tone",
           "label": "Management tone confident & consistent",
-          "value": "Management expresses optimism about future growth, new platforms, and market position.",
+          "value": "Confident and consistent",
           "verdict": "PASS",
           "output_type": "pass_fail",
-          "note": "Management expresses confidence in future growth driven by new platforms and increasing market share, despite acknowledging steep targets.",
+          "note": "Management expressed strong confidence in growth, market share gains, and strategic initiatives across multiple calls.",
           "confidence": "high",
           "source": "2026-01",
           "fields": {
@@ -46692,22 +46692,22 @@
           "key": "strategic_stocking",
           "label": "Strategic stocking vs channel-stuffing",
           "value": "",
-          "verdict": "Neutral",
+          "verdict": "NA",
           "output_type": "pos_neu_neg",
-          "note": "The company discusses shifts from traditional SMS to OTT channels due to pricing and user experience, but does not explicitly mention strategic stocking or destocking.",
-          "confidence": "medium",
-          "source": "2026-01",
+          "note": "No disclosure of deliberate stocking, destocking, or channel-stuffing in the excerpts.",
+          "confidence": "high",
+          "source": "",
           "fields": {
-            "stocking_grade": "Neutral"
+            "stocking_grade": ""
           }
         },
         "market_share": {
           "key": "market_share",
           "label": "Market share stable/gaining",
-          "value": "The company states they have approximately 30% CPaaS market share in SEA, Middle East, USA & Europe, and are aiming for 100% revenue market share in Indonesia.",
+          "value": "Gaining in OTT and stable in CPaaS",
           "verdict": "PASS",
           "output_type": "pass_fail",
-          "note": "The company claims a significant market share in various regions and aims for full market share in Indonesia, indicating a strong market position.",
+          "note": "Management highlighted gaining market share in OTT and stable share in CPaaS, with specific customer wins and leadership positions.",
           "confidence": "high",
           "source": "2026-01",
           "fields": {
@@ -46717,10 +46717,10 @@
         "demand_anticipation": {
           "key": "demand_anticipation",
           "label": "Forward demand (1 strong – 5 weak)",
-          "value": "Management notes strong demand for WhatsApp as a channel and growing use cases for notifications.",
+          "value": "Strong demand with some pricing pressure",
           "verdict": "2",
           "output_type": "scale_1_5",
-          "note": "Management describes strong demand for WhatsApp and increasing use cases for notifications, indicating robust demand.",
+          "note": "Management cited strong demand for WhatsApp and OTT channels but noted pricing pressure and competitive dynamics.",
           "confidence": "high",
           "source": "2026-01",
           "fields": {}
@@ -46731,8 +46731,8 @@
           "value": "",
           "verdict": "NA",
           "output_type": "pass_flag",
-          "note": "The excerpts mention a ₹175 crores buyback, but no other capital raises for growth or other purposes are detailed.",
-          "confidence": "low",
+          "note": "No recent capital raise (QIP/rights/preferential/debt) disclosed in the excerpts.",
+          "confidence": "high",
           "source": "",
           "fields": {
             "cap_amount_cr": null,
@@ -46746,7 +46746,7 @@
         "chars_in": 22574,
         "est_tokens": 5644,
         "source": "2026-01",
-        "provider": "gemini",
+        "provider": "mistral",
         "pack_v": 5
       }
     },
@@ -90188,7 +90188,7 @@
           "value": "₹680-700 cr order book",
           "verdict": "PASS",
           "output_type": "pass_fail",
-          "note": "Order book of ₹680-700 crore is disclosed and Coal India orders are growing (₹320 cr for year 1 vs prior year).",
+          "note": "Order book of ₹680-700 cr disclosed and Coal India orders alone are ₹320 cr for one year, indicating growth.",
           "confidence": "high",
           "source": "2017-12",
           "fields": {
@@ -90203,7 +90203,7 @@
           "value": "Positive",
           "verdict": "PASS",
           "output_type": "pass_fail",
-          "note": "Management expresses confidence in demand recovery, capacity increases, and order book growth across quarters.",
+          "note": "Management expresses confidence in demand recovery, capacity increases, and project timelines across quarters.",
           "confidence": "high",
           "source": "2017-12",
           "fields": {
@@ -90229,7 +90229,7 @@
           "value": "",
           "verdict": "NA",
           "output_type": "pass_fail",
-          "note": "No explicit market-share trend or commentary is disclosed in the excerpts.",
+          "note": "No explicit market-share trend or comparison is disclosed in the excerpts.",
           "confidence": "high",
           "source": "",
           "fields": {
@@ -90242,7 +90242,7 @@
           "value": "Moderate",
           "verdict": "2",
           "output_type": "scale_1_5",
-          "note": "Management notes demand recovery and growth in explosives but also cites challenges like subdued markets and FX shortages.",
+          "note": "Management notes demand recovery and growth in explosives but also cites challenges like monsoon and supply disruptions.",
           "confidence": "medium",
           "source": "2017-12",
           "fields": {}
@@ -111484,10 +111484,10 @@
         "guidance_revenue": {
           "key": "guidance_revenue",
           "label": "Revenue guidance (implied)",
-          "value": "double-digit growth",
+          "value": "double-digit growth outlook",
           "verdict": "DISCLOSED",
           "output_type": "implied",
-          "note": "Management stated 'double-digit growth' for the US business and India formulation driving topline, implying a forward revenue outlook.",
+          "note": "Management states 'double-digit growth' for consolidated topline driven by US and India formulations.",
           "confidence": "high",
           "source": "2016-11",
           "fields": {
@@ -111501,10 +111501,10 @@
         "guidance_margin": {
           "key": "guidance_margin",
           "label": "EBITDA-margin guidance (implied)",
-          "value": "expansion expected",
+          "value": "margin expansion",
           "verdict": "DISCLOSED",
           "output_type": "implied",
-          "note": "Management indicated margin expansion due to operating leverage and better product mix despite cost increases.",
+          "note": "Management expects margin improvement due to operating leverage and better product mix.",
           "confidence": "high",
           "source": "2016-11",
           "fields": {
@@ -111518,11 +111518,11 @@
           "value": "",
           "verdict": "NA",
           "output_type": "pass_fail",
-          "note": "Unichem operates in pharmaceuticals where an order book is not a standard metric; no order book data is disclosed.",
+          "note": "Company operates in pharmaceuticals with no disclosed order-book metric.",
           "confidence": "high",
           "source": "",
           "fields": {
-            "ob_trend": "Not disclosed",
+            "ob_trend": "Not applicable",
             "ob_size_cr": null,
             "ob_book_to_bill": null
           }
@@ -111533,7 +111533,7 @@
           "value": "confident and consistent",
           "verdict": "PASS",
           "output_type": "pass_fail",
-          "note": "Management expressed confidence in growth, capacity expansions, and market share gains across multiple calls.",
+          "note": "Management expresses confidence in growth outlook and capacity expansions across multiple calls.",
           "confidence": "high",
           "source": "2016-11",
           "fields": {
@@ -111546,7 +111546,7 @@
           "value": "",
           "verdict": "NA",
           "output_type": "pos_neu_neg",
-          "note": "No explicit commentary on inventory stocking levels or channel-stuffing risks is provided in the excerpts.",
+          "note": "No explicit commentary on inventory stocking strategy or channel-stuffing risk.",
           "confidence": "high",
           "source": "",
           "fields": {
@@ -111559,8 +111559,8 @@
           "value": "gaining in key brands",
           "verdict": "PASS",
           "output_type": "pass_fail",
-          "note": "Management highlighted market share gains for brands like Losar and Ampoxin on a MAT basis.",
-          "confidence": "high",
+          "note": "Management cites improving market share for Losar and Ampoxin on MAT basis.",
+          "confidence": "medium",
           "source": "2016-11",
           "fields": {
             "ms_trend": "Gaining"
@@ -111569,11 +111569,11 @@
         "demand_anticipation": {
           "key": "demand_anticipation",
           "label": "Forward demand (1 strong – 5 weak)",
-          "value": "reasonably confident",
+          "value": "moderately strong",
           "verdict": "2",
           "output_type": "scale_1_5",
-          "note": "Management expressed 'reasonably confident' in maintaining current business levels and growth, indicating moderate demand anticipation.",
-          "confidence": "high",
+          "note": "Management expects continued growth in US and India formulations with some caution on acute business post-epidemics.",
+          "confidence": "medium",
           "source": "2016-11",
           "fields": {}
         },
@@ -111583,7 +111583,7 @@
           "value": "",
           "verdict": "NA",
           "output_type": "pass_flag",
-          "note": "No recent capital raise (QIP/rights/debt) is disclosed in the excerpts.",
+          "note": "No disclosed capital raise in the excerpts.",
           "confidence": "high",
           "source": "",
           "fields": {
@@ -132693,7 +132693,7 @@
           "value": "₹750-800 cr FY25; ₹1,500 cr FY27 order inflow target",
           "verdict": "DISCLOSED",
           "output_type": "implied",
-          "note": "FY25 revenue guidance of ₹750-800 cr reaffirmed in Feb-2025 call; FY27 order inflow target of ₹1,500 cr disclosed in May-2026 PPT.",
+          "note": "Management guided ₹750-800 cr revenue for FY25 and ₹1,500 cr order inflow for FY27 in the latest materials.",
           "confidence": "high",
           "source": "2025-02",
           "fields": {
@@ -132701,30 +132701,30 @@
             "rev_high_pct": null,
             "rev_target_low_cr": 750,
             "rev_target_high_cr": 800,
-            "rev_vs_prior": "Maintained"
+            "rev_vs_prior": "Not disclosed"
           }
         },
         "guidance_margin": {
           "key": "guidance_margin",
           "label": "EBITDA-margin guidance (implied)",
-          "value": "10-12% medium-term EBITDA margin target",
+          "value": "10-12% long-term; 6.7% 9M FY25; improving to 15-20% on monetization",
           "verdict": "DISCLOSED",
           "output_type": "implied",
-          "note": "Management states focus on projects aligning with margin targets of 10% to 12% and expects margin improvement from current levels.",
-          "confidence": "medium",
+          "note": "Management stated a margin target of 10-12% and expects margins to improve to 15-20% with monetization of real estate assets.",
+          "confidence": "high",
           "source": "2025-02",
           "fields": {
             "margin_direction": "Expanding",
-            "margin_level_pct": null
+            "margin_level_pct": 10
           }
         },
         "order_book": {
           "key": "order_book",
           "label": "Order book growing",
-          "value": "₹2,100 cr as of Dec-2024; growing YoY",
+          "value": "₹2,100 cr as of Dec 2024; growing YoY",
           "verdict": "PASS",
           "output_type": "pass_fail",
-          "note": "Order book reported at ₹2,100 cr in Dec-2024, up from ₹2,050 cr in Jun-2024 and implying growth over prior periods.",
+          "note": "Order book reported at ₹2,100 cr in Dec 2024, up from ₹2,050 cr in Q1 FY25, indicating growth.",
           "confidence": "high",
           "source": "2025-02",
           "fields": {
@@ -132739,7 +132739,7 @@
           "value": "Positive and consistent",
           "verdict": "PASS",
           "output_type": "pass_fail",
-          "note": "Management expresses bright outlook, confidence in execution, and consistent positive commentary across both calls and PPT.",
+          "note": "Management expressed confidence in growth outlook, order inflow, and margin improvement across multiple calls.",
           "confidence": "high",
           "source": "2025-02",
           "fields": {
@@ -132752,7 +132752,7 @@
           "value": "",
           "verdict": "NA",
           "output_type": "pos_neu_neg",
-          "note": "No disclosure on deliberate inventory stocking or channel-stuffing risk in the excerpts.",
+          "note": "No explicit commentary on deliberate stocking or channel-stuffing risk in the excerpts.",
           "confidence": "high",
           "source": "",
           "fields": {
@@ -132765,8 +132765,8 @@
           "value": "",
           "verdict": "NA",
           "output_type": "pass_fail",
-          "note": "No disclosure on market share trend or competitive position over ~3 years in the excerpts.",
-          "confidence": "high",
+          "note": "No direct disclosure on market share trend over ~3 years in the excerpts.",
+          "confidence": "low",
           "source": "",
           "fields": {
             "ms_trend": "Not disclosed"
@@ -132778,7 +132778,7 @@
           "value": "Very strong forward-demand commentary",
           "verdict": "1",
           "output_type": "scale_1_5",
-          "note": "Management highlights bright outlook, government focus on hydro/water infrastructure, and strong order pipeline signaling very strong demand anticipation.",
+          "note": "Management highlighted strong government focus on hydro, JJM, and PSP projects, indicating very strong demand anticipation.",
           "confidence": "high",
           "source": "2025-02",
           "fields": {}
@@ -132789,7 +132789,7 @@
           "value": "",
           "verdict": "NA",
           "output_type": "pass_flag",
-          "note": "No disclosure of any recent capital raise (QIP/rights/debt) in the excerpts.",
+          "note": "No mention of recent capital raise in the excerpts.",
           "confidence": "high",
           "source": "",
           "fields": {
