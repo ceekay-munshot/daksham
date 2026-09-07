@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-07T17:22:43.871Z",
+  "generated_at": "2026-09-07T21:11:35.760Z",
   "provider": "gemini, groq, cerebras, mistral",
   "model": "gemini-2.5-flash-lite, llama-3.3-70b-versatile, llama3.1-8b, mistral-small-latest",
   "input_max_chars": 24000,
@@ -141607,6 +141607,130 @@
         "chars_in": 23277,
         "est_tokens": 5820,
         "source": "2026-08",
+        "provider": "gemini",
+        "pack_v": 5
+      }
+    },
+    "MILKYMIST": {
+      "name": "MILKYMIST",
+      "params": {
+        "guidance_revenue": {
+          "key": "guidance_revenue",
+          "label": "Revenue guidance (implied)",
+          "value": "",
+          "verdict": "NA",
+          "output_type": "implied",
+          "note": "The company reported strong revenue growth for Q1 FY27 but did not provide a forward-looking revenue guidance.",
+          "confidence": "high",
+          "source": "",
+          "fields": {
+            "rev_low_pct": null,
+            "rev_high_pct": null,
+            "rev_target_low_cr": null,
+            "rev_target_high_cr": null,
+            "rev_vs_prior": "Not disclosed"
+          }
+        },
+        "guidance_margin": {
+          "key": "guidance_margin",
+          "label": "EBITDA-margin guidance (implied)",
+          "value": "EBITDA margin expansion",
+          "verdict": "DISCLOSED",
+          "output_type": "implied",
+          "note": "EBITDA margin expanded to 14.9% in Q1 FY27 from 12.2% in Q1 FY26, aided by operating leverage.",
+          "confidence": "high",
+          "source": "2026-09",
+          "fields": {
+            "margin_direction": "Expanding",
+            "margin_level_pct": 14.88
+          }
+        },
+        "order_book": {
+          "key": "order_book",
+          "label": "Order book growing",
+          "value": "",
+          "verdict": "NA",
+          "output_type": "pass_fail",
+          "note": "The company operates in the dairy and food products sector, which does not typically have a disclosed order book.",
+          "confidence": "high",
+          "source": "",
+          "fields": {
+            "ob_trend": "Not applicable",
+            "ob_size_cr": null,
+            "ob_book_to_bill": null
+          }
+        },
+        "mgmt_tone": {
+          "key": "mgmt_tone",
+          "label": "Management tone confident & consistent",
+          "value": "Confident and ambitious",
+          "verdict": "PASS",
+          "output_type": "pass_fail",
+          "note": "Management expressed ambition to build MilkyMist into a leading, scaled, and enduring FMCG company with a strong portfolio of value-added food products.",
+          "confidence": "high",
+          "source": "2026-09",
+          "fields": {
+            "tone_grade": "Positive"
+          }
+        },
+        "strategic_stocking": {
+          "key": "strategic_stocking",
+          "label": "Strategic stocking vs channel-stuffing",
+          "value": "Capacity expansion supports future growth",
+          "verdict": "Neutral",
+          "output_type": "pos_neu_neg",
+          "note": "The company is undertaking capacity expansion for products like Paneer, Curd, Whey Powder, Natural Cheese, and Greek yogurt, indicating a focus on scaling production to meet anticipated demand.",
+          "confidence": "medium",
+          "source": "2026-09",
+          "fields": {
+            "stocking_grade": "Restocking"
+          }
+        },
+        "market_share": {
+          "key": "market_share",
+          "label": "Market share stable/gaining",
+          "value": "",
+          "verdict": "NA",
+          "output_type": "pass_fail",
+          "note": "The provided excerpts do not contain specific information about the company's current market share or its trend over time.",
+          "confidence": "high",
+          "source": "",
+          "fields": {
+            "ms_trend": "Not disclosed"
+          }
+        },
+        "demand_anticipation": {
+          "key": "demand_anticipation",
+          "label": "Forward demand (1 strong – 5 weak)",
+          "value": "Strong demand for value-added products",
+          "verdict": "2",
+          "output_type": "scale_1_5",
+          "note": "Management highlighted the significant structural opportunity in India's branded and packaged food market, supported by evolving consumer preferences for convenience and premium products.",
+          "confidence": "high",
+          "source": "2026-09",
+          "fields": {}
+        },
+        "capital_raised": {
+          "key": "capital_raised",
+          "label": "Capital raised for growth",
+          "value": "Pre-IPO fund raise",
+          "verdict": "PASS",
+          "output_type": "pass_flag",
+          "note": "The company raised pre-IPO funds from Tamasek and acquired land in Maharashtra, indicating capital deployment for growth initiatives.",
+          "confidence": "high",
+          "source": "2026-09",
+          "fields": {
+            "cap_amount_cr": null,
+            "cap_purpose": "Acquisition",
+            "cap_dilution_pct": null
+          }
+        }
+      },
+      "meta": {
+        "docs_used": 1,
+        "chars_in": 7656,
+        "est_tokens": 1914,
+        "source": "2026-09",
         "provider": "gemini",
         "pack_v": 5
       }
