@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-14T02:18:36.789Z",
+  "generated_at": "2026-09-14T11:27:05.477Z",
   "provider": "gemini, groq, cerebras, mistral",
   "model": "gemini-2.5-flash-lite, llama-3.3-70b-versatile, llama3.1-8b, mistral-small-latest",
   "input_max_chars": 24000,
@@ -143594,6 +143594,254 @@
         "provider": "gemini",
         "pack_v": 5,
         "na_retries": 2
+      }
+    },
+    "MOLBIO": {
+      "name": "Molbio Diagnosti",
+      "params": {
+        "guidance_revenue": {
+          "key": "guidance_revenue",
+          "label": "Revenue guidance (implied)",
+          "value": "",
+          "verdict": "NA",
+          "output_type": "implied",
+          "note": "Management stated that FY27 will be muted and the company is not expected to turn profitable in FY27, but did not provide specific revenue guidance.",
+          "confidence": "low",
+          "source": "",
+          "fields": {
+            "rev_low_pct": null,
+            "rev_high_pct": null,
+            "rev_target_low_cr": null,
+            "rev_target_high_cr": null,
+            "rev_vs_prior": "Not disclosed"
+          }
+        },
+        "guidance_margin": {
+          "key": "guidance_margin",
+          "label": "EBITDA-margin guidance (implied)",
+          "value": "",
+          "verdict": "NA",
+          "output_type": "implied",
+          "note": "While EBITDA margin was mentioned for Q1 FY27, no forward guidance on margin levels or direction was provided.",
+          "confidence": "low",
+          "source": "",
+          "fields": {
+            "margin_direction": "Not disclosed",
+            "margin_level_pct": null
+          }
+        },
+        "order_book": {
+          "key": "order_book",
+          "label": "Order book growing",
+          "value": "",
+          "verdict": "NA",
+          "output_type": "pass_fail",
+          "note": "The company operates on a recurring revenue model from test kit sales tied to machine installations, rather than a traditional order book.",
+          "confidence": "high",
+          "source": "",
+          "fields": {
+            "ob_trend": "Not applicable",
+            "ob_size_cr": null,
+            "ob_book_to_bill": null
+          }
+        },
+        "mgmt_tone": {
+          "key": "mgmt_tone",
+          "label": "Management tone confident & consistent",
+          "value": "Confident in mission and technology, acknowledging IPO success and future potential.",
+          "verdict": "PASS",
+          "output_type": "pass_fail",
+          "note": "Management expressed confidence in their mission, technology, and the positive response to their IPO, while acknowledging the need for full-year performance assessment due to a non-linear revenue profile.",
+          "confidence": "high",
+          "source": "2026-09",
+          "fields": {
+            "tone_grade": "Positive"
+          }
+        },
+        "strategic_stocking": {
+          "key": "strategic_stocking",
+          "label": "Strategic stocking vs channel-stuffing",
+          "value": "No indication of stocking or destocking.",
+          "verdict": "Neutral",
+          "output_type": "pos_neu_neg",
+          "note": "The company's business model relies on recurring revenue from test kit consumption tied to installed machines, with no specific commentary on strategic stocking or destocking activities.",
+          "confidence": "high",
+          "source": "2026-09",
+          "fields": {
+            "stocking_grade": "Neutral"
+          }
+        },
+        "market_share": {
+          "key": "market_share",
+          "label": "Market share stable/gaining",
+          "value": "Significant market share in India, aiming for growth in exports.",
+          "verdict": "PASS",
+          "output_type": "pass_fail",
+          "note": "Management stated that the company has captured a significant market share in India for molecular diagnostics and expects export business to be a very important driver of growth.",
+          "confidence": "high",
+          "source": "2026-09",
+          "fields": {
+            "ms_trend": "Gaining"
+          }
+        },
+        "demand_anticipation": {
+          "key": "demand_anticipation",
+          "label": "Forward demand (1 strong – 5 weak)",
+          "value": "Cautious outlook for FY27.",
+          "verdict": "3",
+          "output_type": "scale_1_5",
+          "note": "Management indicated that FY27 will be muted from a financial perspective and the company is not expected to turn profitable in FY27, suggesting a cautious anticipation of demand for the current fiscal year.",
+          "confidence": "medium",
+          "source": "2026-09",
+          "fields": {}
+        },
+        "capital_raised": {
+          "key": "capital_raised",
+          "label": "Capital raised for growth",
+          "value": "IPO proceeds for automation and R&D.",
+          "verdict": "PASS",
+          "output_type": "pass_flag",
+          "note": "The company raised ₹200 crores in its IPO, with ₹72 crores allocated for automation to improve efficiencies and capacity, and for building an R&D facility.",
+          "confidence": "high",
+          "source": "2026-09",
+          "fields": {
+            "cap_amount_cr": 200,
+            "cap_purpose": "Capex",
+            "cap_dilution_pct": null
+          }
+        }
+      },
+      "meta": {
+        "docs_used": 2,
+        "chars_in": 14394,
+        "est_tokens": 3599,
+        "source": "2026-09",
+        "provider": "gemini",
+        "pack_v": 5
+      }
+    },
+    "HORIZONIND": {
+      "name": "Horizon Industrial",
+      "params": {
+        "guidance_revenue": {
+          "key": "guidance_revenue",
+          "label": "Revenue guidance (implied)",
+          "value": "Leasing 6.5 million sq ft",
+          "verdict": "DISCLOSED",
+          "output_type": "implied",
+          "note": "The company targets leasing close to 6.5 million square feet.",
+          "confidence": "high",
+          "source": "2026-09",
+          "fields": {
+            "rev_low_pct": null,
+            "rev_high_pct": null,
+            "rev_target_low_cr": null,
+            "rev_target_high_cr": null,
+            "rev_vs_prior": "Not disclosed"
+          }
+        },
+        "guidance_margin": {
+          "key": "guidance_margin",
+          "label": "EBITDA-margin guidance (implied)",
+          "value": "EBITDA margin of 80%",
+          "verdict": "DISCLOSED",
+          "output_type": "implied",
+          "note": "The company projects an EBITDA margin of approximately 80% on future developments.",
+          "confidence": "low",
+          "source": "2026-09",
+          "fields": {
+            "margin_direction": "Not disclosed",
+            "margin_level_pct": 80
+          }
+        },
+        "order_book": {
+          "key": "order_book",
+          "label": "Order book growing",
+          "value": "",
+          "verdict": "NA",
+          "output_type": "pass_fail",
+          "note": "The company operates in industrial and logistics real estate and does not disclose an order book.",
+          "confidence": "high",
+          "source": "",
+          "fields": {
+            "ob_trend": "Not applicable",
+            "ob_size_cr": null,
+            "ob_book_to_bill": null
+          }
+        },
+        "mgmt_tone": {
+          "key": "mgmt_tone",
+          "label": "Management tone confident & consistent",
+          "value": "Confident and optimistic about growth",
+          "verdict": "PASS",
+          "output_type": "pass_fail",
+          "note": "Management expresses strong conviction in the company's growth trajectory and market position.",
+          "confidence": "high",
+          "source": "2026-09",
+          "fields": {
+            "tone_grade": "Positive"
+          }
+        },
+        "strategic_stocking": {
+          "key": "strategic_stocking",
+          "label": "Strategic stocking vs channel-stuffing",
+          "value": "",
+          "verdict": "Neutral",
+          "output_type": "pos_neu_neg",
+          "note": "Management focuses on building institutional-grade infrastructure to meet evolving customer needs.",
+          "confidence": "medium",
+          "source": "2026-09",
+          "fields": {
+            "stocking_grade": "Neutral"
+          }
+        },
+        "market_share": {
+          "key": "market_share",
+          "label": "Market share stable/gaining",
+          "value": "Focus on gaining market share",
+          "verdict": "PASS",
+          "output_type": "pass_fail",
+          "note": "Management is very focused on continuing to gain market share in their existing Tier 1 markets.",
+          "confidence": "high",
+          "source": "2026-09",
+          "fields": {
+            "ms_trend": "Gaining"
+          }
+        },
+        "demand_anticipation": {
+          "key": "demand_anticipation",
+          "label": "Forward demand (1 strong – 5 weak)",
+          "value": "Strong demand for industrial and logistics space",
+          "verdict": "2",
+          "output_type": "scale_1_5",
+          "note": "The company highlights strong demand driven by e-commerce, manufacturing, and quick commerce, indicating a positive outlook for future space requirements.",
+          "confidence": "high",
+          "source": "2026-09",
+          "fields": {}
+        },
+        "capital_raised": {
+          "key": "capital_raised",
+          "label": "Capital raised for growth",
+          "value": "INR4,250 crores raised via IPO",
+          "verdict": "PASS",
+          "output_type": "pass_flag",
+          "note": "The company successfully completed its IPO, raising INR4,250 crores, with proceeds deployed for deleveraging.",
+          "confidence": "high",
+          "source": "2026-09",
+          "fields": {
+            "cap_amount_cr": 4250,
+            "cap_purpose": "Debt repay",
+            "cap_dilution_pct": null
+          }
+        }
+      },
+      "meta": {
+        "docs_used": 1,
+        "chars_in": 8714,
+        "est_tokens": 2179,
+        "source": "2026-09",
+        "provider": "gemini",
+        "pack_v": 5
       }
     }
   },
