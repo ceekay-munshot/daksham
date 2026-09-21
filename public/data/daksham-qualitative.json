@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-21T02:25:20.431Z",
+  "generated_at": "2026-09-21T11:37:52.307Z",
   "provider": "gemini, groq, cerebras, mistral",
   "model": "gemini-2.5-flash-lite, llama-3.3-70b-versatile, llama3.1-8b, mistral-small-latest",
   "input_max_chars": 24000,
@@ -145700,6 +145700,254 @@
         "chars_in": 23999,
         "est_tokens": 6000,
         "source": "2017-12",
+        "provider": "gemini",
+        "pack_v": 5
+      }
+    },
+    "ITI": {
+      "name": "ITI",
+      "params": {
+        "guidance_revenue": {
+          "key": "guidance_revenue",
+          "label": "Revenue guidance (implied)",
+          "value": "",
+          "verdict": "NA",
+          "output_type": "implied",
+          "note": "The provided excerpts do not contain any forward-looking revenue guidance from management.",
+          "confidence": "high",
+          "source": "",
+          "fields": {
+            "rev_low_pct": null,
+            "rev_high_pct": null,
+            "rev_target_low_cr": null,
+            "rev_target_high_cr": null,
+            "rev_vs_prior": "Not disclosed"
+          }
+        },
+        "guidance_margin": {
+          "key": "guidance_margin",
+          "label": "EBITDA-margin guidance (implied)",
+          "value": "",
+          "verdict": "NA",
+          "output_type": "implied",
+          "note": "The provided excerpts do not contain any forward-looking margin guidance from management.",
+          "confidence": "high",
+          "source": "",
+          "fields": {
+            "margin_direction": "Not disclosed",
+            "margin_level_pct": null
+          }
+        },
+        "order_book": {
+          "key": "order_book",
+          "label": "Order book growing",
+          "value": "ASCON Phase IV project valued at Rs7,700crs",
+          "verdict": "PASS",
+          "output_type": "pass_fail",
+          "note": "The company has been selected as L-1 by MoD for the ASCON Phase IV project, valued at Rs7,700crs, indicating a significant order.",
+          "confidence": "high",
+          "source": "2020-01",
+          "fields": {
+            "ob_trend": "Not disclosed",
+            "ob_size_cr": 7700,
+            "ob_book_to_bill": null
+          }
+        },
+        "mgmt_tone": {
+          "key": "mgmt_tone",
+          "label": "Management tone confident & consistent",
+          "value": "Positive outlook on growth opportunities and revitalizing business",
+          "verdict": "PASS",
+          "output_type": "pass_fail",
+          "note": "Management highlights that the combination of an experienced board and management has been key in revitalizing the business and will enable capitalization on further growth opportunities.",
+          "confidence": "high",
+          "source": "2020-01",
+          "fields": {
+            "tone_grade": "Positive"
+          }
+        },
+        "strategic_stocking": {
+          "key": "strategic_stocking",
+          "label": "Strategic stocking vs channel-stuffing",
+          "value": "Focus on manufacturing and supplying products for government projects",
+          "verdict": "Neutral",
+          "output_type": "pos_neu_neg",
+          "note": "The company is actively involved in supplying and installing equipment for various government initiatives like BharatNet and NFS Project, suggesting a focus on fulfilling existing orders rather than strategic stocking.",
+          "confidence": "medium",
+          "source": "2020-01",
+          "fields": {
+            "stocking_grade": "Neutral"
+          }
+        },
+        "market_share": {
+          "key": "market_share",
+          "label": "Market share stable/gaining",
+          "value": "",
+          "verdict": "NA",
+          "output_type": "pass_fail",
+          "note": "The provided excerpts do not contain specific information about the company's market share trends.",
+          "confidence": "high",
+          "source": "",
+          "fields": {
+            "ms_trend": "Not disclosed"
+          }
+        },
+        "demand_anticipation": {
+          "key": "demand_anticipation",
+          "label": "Forward demand (1 strong – 5 weak)",
+          "value": "Positive demand drivers identified",
+          "verdict": "2",
+          "output_type": "scale_1_5",
+          "note": "Projects like BharatNet and the Smart Cities Mission are boosting demand for telecommunication equipment, and the Indian telecom sector's growth is supported by long-term telecom services growth and the introduction of 5G technology.",
+          "confidence": "medium",
+          "source": "2020-01",
+          "fields": {}
+        },
+        "capital_raised": {
+          "key": "capital_raised",
+          "label": "Capital raised for growth",
+          "value": "",
+          "verdict": "NA",
+          "output_type": "pass_flag",
+          "note": "The excerpts mention a 'Further Public Offering (FPO)' with an issue size of up to 18,00,00,000 equity shares, but the purpose and amount raised are not detailed in a way that fits the schema's specific sub-fields for capital raised.",
+          "confidence": "low",
+          "source": "",
+          "fields": {
+            "cap_amount_cr": null,
+            "cap_purpose": "None",
+            "cap_dilution_pct": null
+          }
+        }
+      },
+      "meta": {
+        "docs_used": 1,
+        "chars_in": 22264,
+        "est_tokens": 5566,
+        "source": "2020-01",
+        "provider": "gemini",
+        "pack_v": 5
+      }
+    },
+    "LALITHAA": {
+      "name": "Lalithaa Jewel",
+      "params": {
+        "guidance_revenue": {
+          "key": "guidance_revenue",
+          "label": "Revenue guidance (implied)",
+          "value": "",
+          "verdict": "NA",
+          "output_type": "implied",
+          "note": "The provided excerpts do not contain any forward-looking revenue guidance from management.",
+          "confidence": "high",
+          "source": "",
+          "fields": {
+            "rev_low_pct": null,
+            "rev_high_pct": null,
+            "rev_target_low_cr": null,
+            "rev_target_high_cr": null,
+            "rev_vs_prior": "Not disclosed"
+          }
+        },
+        "guidance_margin": {
+          "key": "guidance_margin",
+          "label": "EBITDA-margin guidance (implied)",
+          "value": "",
+          "verdict": "NA",
+          "output_type": "implied",
+          "note": "The excerpts do not provide any guidance on future profit margins.",
+          "confidence": "high",
+          "source": "",
+          "fields": {
+            "margin_direction": "Not disclosed",
+            "margin_level_pct": null
+          }
+        },
+        "order_book": {
+          "key": "order_book",
+          "label": "Order book growing",
+          "value": "",
+          "verdict": "NA",
+          "output_type": "pass_fail",
+          "note": "Lalithaa Jewel operates as a retail jewelry business and does not have a traditional order book.",
+          "confidence": "high",
+          "source": "",
+          "fields": {
+            "ob_trend": "Not applicable",
+            "ob_size_cr": null,
+            "ob_book_to_bill": null
+          }
+        },
+        "mgmt_tone": {
+          "key": "mgmt_tone",
+          "label": "Management tone confident & consistent",
+          "value": "Confident growth and expansion narrative.",
+          "verdict": "PASS",
+          "output_type": "pass_fail",
+          "note": "Management highlights scale achieved through disciplined expansion and strengthening operating capabilities, indicating a confident tone.",
+          "confidence": "high",
+          "source": "2026-09",
+          "fields": {
+            "tone_grade": "Positive"
+          }
+        },
+        "strategic_stocking": {
+          "key": "strategic_stocking",
+          "label": "Strategic stocking vs channel-stuffing",
+          "value": "Focus on inventory management and natural hedges.",
+          "verdict": "Neutral",
+          "output_type": "pos_neu_neg",
+          "note": "The company mentions natural hedges covering a significant portion of gold inventory, suggesting a focus on managing price volatility rather than strategic stocking.",
+          "confidence": "medium",
+          "source": "2026-09",
+          "fields": {
+            "stocking_grade": "Neutral"
+          }
+        },
+        "market_share": {
+          "key": "market_share",
+          "label": "Market share stable/gaining",
+          "value": "",
+          "verdict": "NA",
+          "output_type": "pass_fail",
+          "note": "The excerpts mention market presence and store count growth but do not provide specific data or trends regarding market share.",
+          "confidence": "high",
+          "source": "",
+          "fields": {
+            "ms_trend": "Not disclosed"
+          }
+        },
+        "demand_anticipation": {
+          "key": "demand_anticipation",
+          "label": "Forward demand (1 strong – 5 weak)",
+          "value": "",
+          "verdict": "NA",
+          "output_type": "scale_1_5",
+          "note": "There is no explicit commentary on anticipating future demand levels in the provided excerpts.",
+          "confidence": "high",
+          "source": "",
+          "fields": {}
+        },
+        "capital_raised": {
+          "key": "capital_raised",
+          "label": "Capital raised for growth",
+          "value": "",
+          "verdict": "NA",
+          "output_type": "pass_flag",
+          "note": "The provided excerpts do not mention any recent capital raising activities.",
+          "confidence": "high",
+          "source": "",
+          "fields": {
+            "cap_amount_cr": null,
+            "cap_purpose": "None",
+            "cap_dilution_pct": null
+          }
+        }
+      },
+      "meta": {
+        "docs_used": 1,
+        "chars_in": 2727,
+        "est_tokens": 682,
+        "source": "2026-09",
         "provider": "gemini",
         "pack_v": 5
       }
