@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-01T03:13:40.576Z",
+  "generated_at": "2026-10-01T12:08:50.098Z",
   "provider": "gemini, groq, cerebras, mistral",
   "model": "gemini-2.5-flash-lite, llama-3.3-70b-versatile, llama3.1-8b, mistral-small-latest",
   "input_max_chars": 24000,
@@ -4217,6 +4217,130 @@
         "est_tokens": 6000,
         "source": "2026-06",
         "provider": "mistral",
+        "pack_v": 5
+      }
+    },
+    "544735": {
+      "name": "Novus Loyalty",
+      "params": {
+        "guidance_revenue": {
+          "key": "guidance_revenue",
+          "label": "Revenue guidance (implied)",
+          "value": "International revenue to increase at least two times",
+          "verdict": "DISCLOSED",
+          "output_type": "implied",
+          "note": "The company expects international revenue to increase at least two times, with projections of more than 6 crore for FY27 and close to 10 crore in FY27.",
+          "confidence": "high",
+          "source": "2026-06",
+          "fields": {
+            "rev_low_pct": null,
+            "rev_high_pct": null,
+            "rev_target_low_cr": 6,
+            "rev_target_high_cr": 10,
+            "rev_vs_prior": "Not disclosed"
+          }
+        },
+        "guidance_margin": {
+          "key": "guidance_margin",
+          "label": "EBITDA-margin guidance (implied)",
+          "value": "Margins will increase",
+          "verdict": "DISCLOSED",
+          "output_type": "implied",
+          "note": "Management expects margins to increase due to a greater focus on technology and merchant promotion, which yield better net revenue.",
+          "confidence": "high",
+          "source": "2026-06",
+          "fields": {
+            "margin_direction": "Expanding",
+            "margin_level_pct": 9.68
+          }
+        },
+        "order_book": {
+          "key": "order_book",
+          "label": "Order book growing",
+          "value": "",
+          "verdict": "NA",
+          "output_type": "pass_fail",
+          "note": "The company does not operate on an order-book basis.",
+          "confidence": "high",
+          "source": "",
+          "fields": {
+            "ob_trend": "Not applicable",
+            "ob_size_cr": null,
+            "ob_book_to_bill": null
+          }
+        },
+        "mgmt_tone": {
+          "key": "mgmt_tone",
+          "label": "Management tone confident & consistent",
+          "value": "Confident and optimistic about future growth",
+          "verdict": "PASS",
+          "output_type": "pass_fail",
+          "note": "Management expresses confidence in future growth, citing improved EBITDA and PAT margins, and a focus on international expansion and technology-driven revenue streams.",
+          "confidence": "high",
+          "source": "2026-06",
+          "fields": {
+            "tone_grade": "Positive"
+          }
+        },
+        "strategic_stocking": {
+          "key": "strategic_stocking",
+          "label": "Strategic stocking vs channel-stuffing",
+          "value": "No indication of stocking strategies",
+          "verdict": "Neutral",
+          "output_type": "pos_neu_neg",
+          "note": "There is no explicit mention of strategic stocking, destocking, or channel stuffing in the provided excerpts.",
+          "confidence": "high",
+          "source": "2026-06",
+          "fields": {
+            "stocking_grade": "Neutral"
+          }
+        },
+        "market_share": {
+          "key": "market_share",
+          "label": "Market share stable/gaining",
+          "value": "Aiming to get more market share",
+          "verdict": "PASS",
+          "output_type": "pass_fail",
+          "note": "Management explicitly states an objective to 'get more market share in this industry' through international expansion and focusing on technology and merchant promotion.",
+          "confidence": "medium",
+          "source": "2026-06",
+          "fields": {
+            "ms_trend": "Gaining"
+          }
+        },
+        "demand_anticipation": {
+          "key": "demand_anticipation",
+          "label": "Forward demand (1 strong – 5 weak)",
+          "value": "Positive outlook on future demand",
+          "verdict": "2",
+          "output_type": "scale_1_5",
+          "note": "Management commentary suggests positive anticipation of future demand, particularly through international expansion and focusing on higher-margin technology and merchant promotion services.",
+          "confidence": "medium",
+          "source": "2026-06",
+          "fields": {}
+        },
+        "capital_raised": {
+          "key": "capital_raised",
+          "label": "Capital raised for growth",
+          "value": "IPO proceeds to support growth initiatives",
+          "verdict": "PASS",
+          "output_type": "pass_flag",
+          "note": "The company launched an IPO with an issue size of approximately 60.15 Cr to accelerate product innovation, business expansion, and strengthen its leadership in loyalty and engagement technology.",
+          "confidence": "high",
+          "source": "2026-06",
+          "fields": {
+            "cap_amount_cr": 60.15,
+            "cap_purpose": "Capex",
+            "cap_dilution_pct": null
+          }
+        }
+      },
+      "meta": {
+        "docs_used": 2,
+        "chars_in": 23231,
+        "est_tokens": 5808,
+        "source": "2026-06",
+        "provider": "gemini",
         "pack_v": 5
       }
     },
@@ -148183,7 +148307,7 @@
         "source": "2022-05",
         "provider": "gemini",
         "pack_v": 5,
-        "na_retries": 1
+        "na_retries": 2
       }
     },
     "GAYAPROJ": {
