@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-13T00:18:37.140Z",
+  "generated_at": "2026-10-13T04:44:09.879Z",
   "provider": "gemini, groq, cerebras, mistral",
   "model": "gemini-2.5-flash-lite, llama-3.3-70b-versatile, llama3.1-8b, mistral-small-latest",
   "input_max_chars": 24000,
@@ -151157,6 +151157,130 @@
         "docs_used": 1,
         "chars_in": 9019,
         "est_tokens": 2255,
+        "source": "2026-10",
+        "provider": "gemini",
+        "pack_v": 5
+      }
+    },
+    "LCCPROJECT": {
+      "name": "LCC Projects",
+      "params": {
+        "guidance_revenue": {
+          "key": "guidance_revenue",
+          "label": "Revenue guidance (implied)",
+          "value": "",
+          "verdict": "NA",
+          "output_type": "implied",
+          "note": "The provided excerpts do not contain any forward-looking revenue guidance from management.",
+          "confidence": "high",
+          "source": "",
+          "fields": {
+            "rev_low_pct": null,
+            "rev_high_pct": null,
+            "rev_target_low_cr": null,
+            "rev_target_high_cr": null,
+            "rev_vs_prior": "Not disclosed"
+          }
+        },
+        "guidance_margin": {
+          "key": "guidance_margin",
+          "label": "EBITDA-margin guidance (implied)",
+          "value": "",
+          "verdict": "NA",
+          "output_type": "implied",
+          "note": "Management did not provide any specific guidance on EBITDA margins.",
+          "confidence": "high",
+          "source": "",
+          "fields": {
+            "margin_direction": "Not disclosed",
+            "margin_level_pct": null
+          }
+        },
+        "order_book": {
+          "key": "order_book",
+          "label": "Order book growing",
+          "value": "Order book stood at ₹83,878 million as on June 30, 2026, reflecting steady growth.",
+          "verdict": "PASS",
+          "output_type": "pass_fail",
+          "note": "The order book stood at ₹83,878 million as on June 30, 2026, compared to ₹79,532 million as on March 31, 2026, indicating steady growth.",
+          "confidence": "high",
+          "source": "2026-10",
+          "fields": {
+            "ob_trend": "Growing",
+            "ob_size_cr": 8387.8,
+            "ob_book_to_bill": null
+          }
+        },
+        "mgmt_tone": {
+          "key": "mgmt_tone",
+          "label": "Management tone confident & consistent",
+          "value": "Management expresses confidence in sustained growth momentum.",
+          "verdict": "PASS",
+          "output_type": "pass_fail",
+          "note": "Management's commentary on the strong order visibility and the normalization of operational constraints suggests a confident tone regarding future performance.",
+          "confidence": "high",
+          "source": "2026-10",
+          "fields": {
+            "tone_grade": "Positive"
+          }
+        },
+        "strategic_stocking": {
+          "key": "strategic_stocking",
+          "label": "Strategic stocking vs channel-stuffing",
+          "value": "Execution was impacted by supply-chain disruptions but has since normalized.",
+          "verdict": "Neutral",
+          "output_type": "pos_neu_neg",
+          "note": "The company experienced temporary execution impacts due to supply-chain disruptions and workforce shortages, which have since normalized, suggesting no current strategic stocking issues.",
+          "confidence": "medium",
+          "source": "2026-10",
+          "fields": {
+            "stocking_grade": "Neutral"
+          }
+        },
+        "market_share": {
+          "key": "market_share",
+          "label": "Market share stable/gaining",
+          "value": "",
+          "verdict": "NA",
+          "output_type": "pass_fail",
+          "note": "The provided excerpts do not contain information regarding the company's market share or its trend.",
+          "confidence": "high",
+          "source": "",
+          "fields": {
+            "ms_trend": "Not disclosed"
+          }
+        },
+        "demand_anticipation": {
+          "key": "demand_anticipation",
+          "label": "Forward demand (1 strong – 5 weak)",
+          "value": "Strong order visibility and execution momentum indicate positive demand anticipation.",
+          "verdict": "2",
+          "output_type": "scale_1_5",
+          "note": "The company highlights strong order visibility and strengthening execution momentum, suggesting a positive outlook on demand.",
+          "confidence": "medium",
+          "source": "2026-10",
+          "fields": {}
+        },
+        "capital_raised": {
+          "key": "capital_raised",
+          "label": "Capital raised for growth",
+          "value": "",
+          "verdict": "NA",
+          "output_type": "pass_flag",
+          "note": "There is no mention of any capital raised in the provided excerpts.",
+          "confidence": "high",
+          "source": "",
+          "fields": {
+            "cap_amount_cr": null,
+            "cap_purpose": "None",
+            "cap_dilution_pct": null
+          }
+        }
+      },
+      "meta": {
+        "docs_used": 1,
+        "chars_in": 10736,
+        "est_tokens": 2684,
         "source": "2026-10",
         "provider": "gemini",
         "pack_v": 5
