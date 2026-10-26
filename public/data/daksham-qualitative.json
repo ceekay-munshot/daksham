@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-26T12:08:28.291Z",
+  "generated_at": "2026-10-26T18:07:35.439Z",
   "provider": "gemini, groq, cerebras, mistral",
   "model": "gemini-2.5-flash-lite, llama-3.3-70b-versatile, llama3.1-8b, mistral-small-latest",
   "input_max_chars": 24000,
@@ -153376,6 +153376,378 @@
           "verdict": "NA",
           "output_type": "pass_flag",
           "note": "While capex is mentioned for new facilities, there is no explicit disclosure of capital being raised in the provided excerpts.",
+          "confidence": "high",
+          "source": "",
+          "fields": {
+            "cap_amount_cr": null,
+            "cap_purpose": "None",
+            "cap_dilution_pct": null
+          }
+        }
+      },
+      "meta": {
+        "docs_used": 3,
+        "chars_in": 23999,
+        "est_tokens": 6000,
+        "source": "2026-07",
+        "provider": "gemini",
+        "pack_v": 5
+      }
+    },
+    "APOLLOTYRE": {
+      "name": "Apollo Tyres",
+      "params": {
+        "guidance_revenue": {
+          "key": "guidance_revenue",
+          "label": "Revenue guidance (implied)",
+          "value": "Europe Operations to pick up growth",
+          "verdict": "DISCLOSED",
+          "output_type": "implied",
+          "note": "Management expects Europe Operations to pick up growth as they move forward, and anticipates high teens EBITDA for Europe on a full year basis with the ongoing changes.",
+          "confidence": "medium",
+          "source": "2026-08",
+          "fields": {
+            "rev_low_pct": null,
+            "rev_high_pct": null,
+            "rev_target_low_cr": null,
+            "rev_target_high_cr": null,
+            "rev_vs_prior": "Not disclosed"
+          }
+        },
+        "guidance_margin": {
+          "key": "guidance_margin",
+          "label": "EBITDA-margin guidance (implied)",
+          "value": "High teens EBITDA for Europe",
+          "verdict": "DISCLOSED",
+          "output_type": "implied",
+          "note": "Management expects to deliver high teens EBITDA for Europe on a full year basis with the ongoing changes.",
+          "confidence": "medium",
+          "source": "2026-08",
+          "fields": {
+            "margin_direction": "Expanding",
+            "margin_level_pct": null
+          }
+        },
+        "order_book": {
+          "key": "order_book",
+          "label": "Order book growing",
+          "value": "",
+          "verdict": "NA",
+          "output_type": "pass_fail",
+          "note": "The company does not operate on an order-book basis.",
+          "confidence": "high",
+          "source": "",
+          "fields": {
+            "ob_trend": "Not applicable",
+            "ob_size_cr": null,
+            "ob_book_to_bill": null
+          }
+        },
+        "mgmt_tone": {
+          "key": "mgmt_tone",
+          "label": "Management tone confident & consistent",
+          "value": "Confident about long-term value creation",
+          "verdict": "PASS",
+          "output_type": "pass_fail",
+          "note": "Management expresses confidence that strong fundamentals and strategic direction will support long-term value creation across core markets.",
+          "confidence": "high",
+          "source": "2026-08",
+          "fields": {
+            "tone_grade": "Positive"
+          }
+        },
+        "strategic_stocking": {
+          "key": "strategic_stocking",
+          "label": "Strategic stocking vs channel-stuffing",
+          "value": "Demand remains healthy",
+          "verdict": "Neutral",
+          "output_type": "pos_neu_neg",
+          "note": "Demand remains healthy across categories and channels, and the company is experiencing strong demand in India, leading to tight capacity utilization.",
+          "confidence": "high",
+          "source": "2026-08",
+          "fields": {
+            "stocking_grade": "Neutral"
+          }
+        },
+        "market_share": {
+          "key": "market_share",
+          "label": "Market share stable/gaining",
+          "value": "Gained market share in TBR replacement and overall",
+          "verdict": "PASS",
+          "output_type": "pass_fail",
+          "note": "For the full year, the company believes it has gained market share in TBR replacement and overall.",
+          "confidence": "high",
+          "source": "2026-08",
+          "fields": {
+            "ms_trend": "Gaining"
+          }
+        },
+        "demand_anticipation": {
+          "key": "demand_anticipation",
+          "label": "Forward demand (1 strong – 5 weak)",
+          "value": "Strong demand outlook",
+          "verdict": "2",
+          "output_type": "scale_1_5",
+          "note": "Demand outlook remains very strong, with sales volume increase year-on-year continuing to be very strong, even into July.",
+          "confidence": "high",
+          "source": "2026-08",
+          "fields": {}
+        },
+        "capital_raised": {
+          "key": "capital_raised",
+          "label": "Capital raised for growth",
+          "value": "",
+          "verdict": "NA",
+          "output_type": "pass_flag",
+          "note": "No information regarding capital raised was mentioned in the provided excerpts.",
+          "confidence": "high",
+          "source": "",
+          "fields": {
+            "cap_amount_cr": null,
+            "cap_purpose": "None",
+            "cap_dilution_pct": null
+          }
+        }
+      },
+      "meta": {
+        "docs_used": 3,
+        "chars_in": 23999,
+        "est_tokens": 6000,
+        "source": "2026-08",
+        "provider": "gemini",
+        "pack_v": 5
+      }
+    },
+    "RRKABEL": {
+      "name": "R R Kabel",
+      "params": {
+        "guidance_revenue": {
+          "key": "guidance_revenue",
+          "label": "Revenue guidance (implied)",
+          "value": "Grow ahead of industry",
+          "verdict": "DISCLOSED",
+          "output_type": "implied",
+          "note": "The company aims to grow ahead of the industry in wires and cables and build FMEG into a consistently profitable business.",
+          "confidence": "high",
+          "source": "2026-08",
+          "fields": {
+            "rev_low_pct": null,
+            "rev_high_pct": null,
+            "rev_target_low_cr": null,
+            "rev_target_high_cr": null,
+            "rev_vs_prior": "Not disclosed"
+          }
+        },
+        "guidance_margin": {
+          "key": "guidance_margin",
+          "label": "EBITDA-margin guidance (implied)",
+          "value": "10.5% by FY'28",
+          "verdict": "DISCLOSED",
+          "output_type": "implied",
+          "note": "The company maintains its overall margin guidance of 10.5% by FY'28 for Wires & Cables, aiming to touch double-digit margins for the year.",
+          "confidence": "high",
+          "source": "2026-08",
+          "fields": {
+            "margin_direction": "Expanding",
+            "margin_level_pct": 10.5
+          }
+        },
+        "order_book": {
+          "key": "order_book",
+          "label": "Order book growing",
+          "value": "",
+          "verdict": "NA",
+          "output_type": "pass_fail",
+          "note": "The company's business model does not appear to be order-book driven.",
+          "confidence": "high",
+          "source": "",
+          "fields": {
+            "ob_trend": "Not applicable",
+            "ob_size_cr": null,
+            "ob_book_to_bill": null
+          }
+        },
+        "mgmt_tone": {
+          "key": "mgmt_tone",
+          "label": "Management tone confident & consistent",
+          "value": "Confident and optimistic",
+          "verdict": "PASS",
+          "output_type": "pass_fail",
+          "note": "Management expresses confidence in overcoming challenges, achieving growth targets, and building the business for sustainable long-term growth.",
+          "confidence": "high",
+          "source": "2026-08",
+          "fields": {
+            "tone_grade": "Positive"
+          }
+        },
+        "strategic_stocking": {
+          "key": "strategic_stocking",
+          "label": "Strategic stocking vs channel-stuffing",
+          "value": "Normal inventory levels",
+          "verdict": "Neutral",
+          "output_type": "pos_neu_neg",
+          "note": "Management indicated that channel inventory is more or less normal as of quarter-end, with no significant stocking or destocking impact observed.",
+          "confidence": "medium",
+          "source": "2026-08",
+          "fields": {
+            "stocking_grade": "Neutral"
+          }
+        },
+        "market_share": {
+          "key": "market_share",
+          "label": "Market share stable/gaining",
+          "value": "Gaining share in cables",
+          "verdict": "PASS",
+          "output_type": "pass_fail",
+          "note": "The company is seeing market share gains in the cables segment due to scale and improving product mix.",
+          "confidence": "high",
+          "source": "2026-08",
+          "fields": {
+            "ms_trend": "Gaining"
+          }
+        },
+        "demand_anticipation": {
+          "key": "demand_anticipation",
+          "label": "Forward demand (1 strong – 5 weak)",
+          "value": "Supportive demand",
+          "verdict": "2",
+          "output_type": "scale_1_5",
+          "note": "Management notes that demand remains supportive across infrastructure, construction, industrial projects, and power-related applications.",
+          "confidence": "high",
+          "source": "2026-08",
+          "fields": {}
+        },
+        "capital_raised": {
+          "key": "capital_raised",
+          "label": "Capital raised for growth",
+          "value": "",
+          "verdict": "NA",
+          "output_type": "pass_flag",
+          "note": "No capital raising activities were mentioned in the provided excerpts.",
+          "confidence": "high",
+          "source": "",
+          "fields": {
+            "cap_amount_cr": null,
+            "cap_purpose": "None",
+            "cap_dilution_pct": null
+          }
+        }
+      },
+      "meta": {
+        "docs_used": 3,
+        "chars_in": 23999,
+        "est_tokens": 6000,
+        "source": "2026-08",
+        "provider": "gemini",
+        "pack_v": 5
+      }
+    },
+    "BANDHANBNK": {
+      "name": "Bandhan Bank",
+      "params": {
+        "guidance_revenue": {
+          "key": "guidance_revenue",
+          "label": "Revenue guidance (implied)",
+          "value": "",
+          "verdict": "NA",
+          "output_type": "implied",
+          "note": "Management discusses past performance and strategic priorities but does not provide a forward-looking revenue growth outlook.",
+          "confidence": "high",
+          "source": "",
+          "fields": {
+            "rev_low_pct": null,
+            "rev_high_pct": null,
+            "rev_target_low_cr": null,
+            "rev_target_high_cr": null,
+            "rev_vs_prior": "Not disclosed"
+          }
+        },
+        "guidance_margin": {
+          "key": "guidance_margin",
+          "label": "EBITDA-margin guidance (implied)",
+          "value": "Stable",
+          "verdict": "DISCLOSED",
+          "output_type": "implied",
+          "note": "Margin performance remained broadly stable during the quarter compared to earlier expectation of a modest improvement, influenced by elevated funding costs.",
+          "confidence": "high",
+          "source": "2026-07",
+          "fields": {
+            "margin_direction": "Stable",
+            "margin_level_pct": null
+          }
+        },
+        "order_book": {
+          "key": "order_book",
+          "label": "Order book growing",
+          "value": "",
+          "verdict": "NA",
+          "output_type": "pass_fail",
+          "note": "The company is a bank and does not operate on an order-book basis.",
+          "confidence": "high",
+          "source": "",
+          "fields": {
+            "ob_trend": "Not applicable",
+            "ob_size_cr": null,
+            "ob_book_to_bill": null
+          }
+        },
+        "mgmt_tone": {
+          "key": "mgmt_tone",
+          "label": "Management tone confident & consistent",
+          "value": "Confident and resilient",
+          "verdict": "PASS",
+          "output_type": "pass_fail",
+          "note": "Management expresses confidence in their ability to deliver sustainable, profitable growth while strengthening the balance sheet, highlighting resilience and disciplined execution.",
+          "confidence": "high",
+          "source": "2026-07",
+          "fields": {
+            "tone_grade": "Positive"
+          }
+        },
+        "strategic_stocking": {
+          "key": "strategic_stocking",
+          "label": "Strategic stocking vs channel-stuffing",
+          "value": "Focus on deposit quality",
+          "verdict": "Neutral",
+          "output_type": "pos_neu_neg",
+          "note": "The bank is strategically reducing high-cost bulk deposits to improve the quality and granularity of its deposit franchise, while retail term deposits and CASA continue to grow strongly.",
+          "confidence": "high",
+          "source": "2026-07",
+          "fields": {
+            "stocking_grade": "Neutral"
+          }
+        },
+        "market_share": {
+          "key": "market_share",
+          "label": "Market share stable/gaining",
+          "value": "",
+          "verdict": "NA",
+          "output_type": "pass_fail",
+          "note": "Management discusses business growth and resilience but does not provide specific commentary on market share trends.",
+          "confidence": "high",
+          "source": "",
+          "fields": {
+            "ms_trend": "Not disclosed"
+          }
+        },
+        "demand_anticipation": {
+          "key": "demand_anticipation",
+          "label": "Forward demand (1 strong – 5 weak)",
+          "value": "Mixed",
+          "verdict": "3",
+          "output_type": "scale_1_5",
+          "note": "While the bank demonstrated resilience in Q1FY27, management notes seasonal headwinds and external factors impacting NIMs, suggesting a cautious outlook on immediate margin improvement.",
+          "confidence": "medium",
+          "source": "2026-07",
+          "fields": {}
+        },
+        "capital_raised": {
+          "key": "capital_raised",
+          "label": "Capital raised for growth",
+          "value": "",
+          "verdict": "NA",
+          "output_type": "pass_flag",
+          "note": "There is no mention of any capital raised in the provided excerpts.",
           "confidence": "high",
           "source": "",
           "fields": {
